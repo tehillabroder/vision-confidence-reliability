@@ -18,6 +18,13 @@ from torchvision import datasets, transforms
 DATA_DIR = "data"
 
 
+def set_seed(seed: int):
+    # Set torch seeds for repeatable runs.
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 class SimpleCNN(nn.Module):
     """A small two-conv-layer CNN for 28x28 grayscale digits."""
 
@@ -56,7 +63,7 @@ def train(model, loader, device, epochs: int, max_train_batches=None):
         running_loss = 0.0
         batches = 0
         for images, labels in loader:
-            # Stop early when a batch cap is set, useful for quick debug runs.
+            # Stop early when a batch cap is set.
             if max_train_batches is not None and batches >= max_train_batches:
                 break
             batches += 1
@@ -91,8 +98,7 @@ def main():
                         help="cap training batches per epoch for quick debugging")
     args = parser.parse_args()
 
-    # Fixed seed for repeatable runs.
-    torch.manual_seed(args.seed)
+    set_seed(args.seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")

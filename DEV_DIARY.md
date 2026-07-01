@@ -25,3 +25,17 @@ When the batch cap stops an epoch early the average loss now divides by the batc
 
 Next step
 Still to add degradations and reliability metrics later, but not yet.
+
+## 2026-07-01
+
+What I worked on
+Two small changes to the MNIST baseline script.
+
+What changed
+Added a set_seed function that sets the torch seed and also the CUDA seed when CUDA is available, and used it in main instead of the inline call. Shortened the comment on the batch cap to plainer wording.
+
+Problem or decision
+None.
+
+Next step
+Still to add degradations and reliability metrics later.
