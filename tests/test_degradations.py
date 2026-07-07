@@ -1,4 +1,5 @@
 """Unit tests for image degradation functions."""
+
 import pytest
 import torch
 from src.degradations.image_degradations import apply_degradation
