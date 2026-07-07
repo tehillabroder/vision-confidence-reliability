@@ -33,7 +33,7 @@ def set_seed(seed: int):
 class SimpleCNN(nn.Module):
     """A small two-conv-layer CNN for 28x28 grayscale digits."""
 
-    def __init__(self, num_classes: int = 10):
+    def __init__(self, num_classes: int = 10):  # 10 classes for MNIST digits 0 to 9
         super().__init__()
         # 1 input channel as MNIST images are grayscale
         # extract 16 different visual features (like edges or curves) in the first layer.
@@ -43,7 +43,6 @@ class SimpleCNN(nn.Module):
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
         # the last conv layer outputs 32 channels, flattening gives us a flat vector of 32 * 7 * 7 = 1568 numbers.
         self.fc1 = nn.Linear(32 * 7 * 7, 128)
-        # num_classes defaults to 10 because there are exactly 10 digits to classify
         self.fc2 = nn.Linear(128, num_classes)
 
     def forward(self, x):
@@ -56,10 +55,7 @@ class SimpleCNN(nn.Module):
 def get_loaders(batch_size: int):
     transform = transforms.Compose([
         transforms.ToTensor(),
-        # 0.1307 is the global mean (average pixel brightness) of the MNIST training dataset.
-        # 0.3081 is the dataset's global standard deviation (spread of pixel values).
-        # centers image data around 0 with a variance of 1, preventing exploding/vaninshing gradients
-        transforms.Normalize((0.1307,), (0.3081,)),
+        transforms.Normalize((0.1307,), (0.3081,)),  # standard MNIST mean and std
     ])
     train_set = datasets.MNIST(DATA_DIR, train=True, download=True, transform=transform)
     test_set = datasets.MNIST(DATA_DIR, train=False, download=True, transform=transform)

@@ -57,13 +57,13 @@ Move to Stage 2 by extracting these basic metric calculations out of the experim
 ## 2026-07-07
 
 What I worked on
-Created reusable metric helpers and verified them with automated tests for Stage 2.
+Moved the basic metric calculations into a separate module and set up automated tests to make sure they work properly.
 
 What changed
-Extracted `accuracy_from_correct`, `mean_confidence`, and `confidence_accuracy_gap` out of the main experiment loop and into a dedicated `src/metrics/basic.py` module. Created a corresponding `tests/test_basic_metrics.py` file to handle edge cases and confirm calculations under `pytest`.
+Took the math for `accuracy_from_correct`, `mean_confidence`, and `confidence_accuracy_gap` out of the main experiment loop and put them into `src/metrics/basic.py`. Also created a `tests/test_basic_metrics.py` file to catch edge cases using `pytest`, and updated `experiments/mnist_baseline.py` to use these new helpers via `.to_list()` conversions.
 
 Problem or decision
-Added input validation constraints inside `mean_confidence` to explicitly raise a `ValueError` if passed confidence scores fall outside the mathematically valid 0 to 1 range.
+Added a quick validation check inside `mean_confidence` to throw a `ValueError` if any confidence scores look weird (outside 0 to 1). Decided to convert the data from Pandas dataframes into normal Python lists first so the metric functions stay simple and don't run into index bugs.
 
 Next step
-Update the clean MNIST baseline script to import and utilize these new centralized metric functions instead of computing them inline.
+Start working on the image degradation functions for blur, noise, and low light across the different severity levels.
