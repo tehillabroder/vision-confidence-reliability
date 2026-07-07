@@ -15,6 +15,12 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
+from src.metrics.basic import (
+    accuracy_from_correct,
+    confidence_accuracy_gap,
+    mean_confidence,
+)
+
 DATA_DIR = "data"
 
 
@@ -132,17 +138,18 @@ def save_outputs(rows, accuracy: float, output_dir: str):
     predictions_df = pd.DataFrame(rows)
     predictions_df.to_csv(output_path / "predictions.csv", index=False)
 
-    mean_confidence = predictions_df["confidence"].mean()
-    confidence_accuracy_gap = mean_confidence - accuracy
+    # convert pandas series to regular python lists for metric calculations
+    correct = predictions_df["correct"].to_list()
+    confidences = predictions_df["confidence"].to_list()
 
     metrics_df = pd.DataFrame([{
         "dataset": "MNIST",
         "model": "SimpleCNN",
         "degradation": "clean",
         "severity": 0,
-        "accuracy": accuracy,
-        "mean_confidence": mean_confidence,
-        "confidence_accuracy_gap": confidence_accuracy_gap,
+        "accuracy": accuracy_from_correct(correct),
+        "mean_confidence": mean_confidence(confidences),
+        "confidence_accuracy_gap": confidence_accuracy_gap(correct, confidences),
         "num_examples": len(predictions_df),
     }])
 
