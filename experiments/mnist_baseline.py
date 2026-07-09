@@ -20,6 +20,7 @@ from src.metrics.basic import (
     confidence_accuracy_gap,
     mean_confidence,
 )
+from src.models.simple_cnn import SimpleCNN
 
 DATA_DIR = "data"
 
@@ -29,28 +30,6 @@ def set_seed(seed: int):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-
-class SimpleCNN(nn.Module):
-    """A small two-conv-layer CNN for 28x28 grayscale digits."""
-
-    def __init__(self, num_classes: int = 10):  # 10 classes for MNIST digits 0 to 9
-        super().__init__()
-        # 1 input channel as MNIST images are grayscale
-        # extract 16 different visual features (like edges or curves) in the first layer.
-        # standard 3x3 sliding window with padding of 1 to keep image dimensions exactly 28x28 after convolution.
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, padding=1)
-        # 32 output channels to double the feature maps finding more complex combinations of shapes.
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        # the last conv layer outputs 32 channels, flattening gives us a flat vector of 32 * 7 * 7 = 1568 numbers.
-        self.fc1 = nn.Linear(32 * 7 * 7, 128)
-        self.fc2 = nn.Linear(128, num_classes)
-
-    def forward(self, x):
-        x = F.max_pool2d(F.relu(self.conv1(x)), 2)  # 28 -> 14
-        x = F.max_pool2d(F.relu(self.conv2(x)), 2)  # 14 -> 7
-        x = torch.flatten(x, 1)
-        x = F.relu(self.fc1(x))
-        return self.fc2(x)
 
 def get_loaders(batch_size: int):
     transform = transforms.Compose([
