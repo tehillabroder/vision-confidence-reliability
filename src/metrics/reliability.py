@@ -16,7 +16,7 @@ def expected_calibration_error(correct, confidences, n_bins: int = 10):
     for bin_index in range(n_bins):
         lower = bin_index / n_bins
         upper = (bin_index + 1) / n_bins
-        # include lower bound only for the first bin to catch pure zero confidences
+        # avoid double counting or missing exact edge values between bins        
         if bin_index == 0:
             in_bin = (confidence_array >= lower) & (confidence_array <= upper)
         else:
@@ -26,6 +26,7 @@ def expected_calibration_error(correct, confidences, n_bins: int = 10):
         bin_accuracy = correct_array[in_bin].mean()
         bin_confidence = confidence_array[in_bin].mean()
         bin_weight = in_bin.mean()
+        # penalise overconfidence and underconfidence equally
         ece += bin_weight * abs(bin_accuracy - bin_confidence)
     return float(ece)
 
@@ -38,6 +39,7 @@ def high_confidence_error_rate(correct, confidences, threshold: float = 0.90):
     if correct_array.size != confidence_array.size:
         raise ValueError("Correct and confidence arrays must have the same length.")
     high_confidence_wrong = (correct_array == 0) & (confidence_array >= threshold)
+    # denominator is total predictions (not just high conf ones) to measure global risk severity
     return float(high_confidence_wrong.mean())
 
 def calibration_bins(correct, confidences, n_bins: int = 10):
@@ -53,6 +55,7 @@ def calibration_bins(correct, confidences, n_bins: int = 10):
         else:
             in_bin = (confidence_array > lower) & (confidence_array <= upper)
         count = int(in_bin.sum())
+        # explicitly include empty bins to prevent missing steps or gaps on the reliability plot
         if count == 0:
             rows.append({
                 "bin": bin_index,

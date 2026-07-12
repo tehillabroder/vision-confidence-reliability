@@ -13,6 +13,7 @@ from src.degradations.image_degradations import apply_degradation
 
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
 from src.models.simple_cnn import SimpleCNN
+from src.metrics.reliability import (calibration_bins, expected_calibration_error, high_confidence_error_rate,)
 
 DATA_DIR = "data"
 # standard mnist mean and standard deviation
@@ -31,7 +32,7 @@ class DegradedMNIST(Dataset):
             DATA_DIR,
             train=False,
             download=True,
-            transform=transforms.ToTensor(),
+            transform=transforms.ToTensor()
         )
         self.degradation = degradation
         self.severity = severity
@@ -42,7 +43,7 @@ class DegradedMNIST(Dataset):
         degraded_image = apply_degradation(
             image,
             self.degradation,
-            self.severity,
+            self.severity
         )
         normalised_image = NORMALISE(degraded_image)
         return normalised_image, label, index
@@ -56,7 +57,7 @@ def get_train_loader(batch_size: int):
         DATA_DIR,
         train=True,
         download=True,
-        transform=transform,
+        transform=transform
     )
     return DataLoader(train_set, batch_size=batch_size, shuffle=True)
 
@@ -107,7 +108,7 @@ def evaluate_condition(model, device, batch_size: int, degradation: str, severit
                 "correct": int(batch_correct[i].item()),
                 "confidence": float(confidences[i].item()),
                 "degradation": degradation,
-                "severity": severity,
+                "severity": severity
             })
     return rows
 
@@ -123,7 +124,9 @@ def summarise_condition(rows):
         "accuracy": accuracy_from_correct(correct),
         "mean_confidence": mean_confidence(confidences),
         "confidence_accuracy_gap": confidence_accuracy_gap(correct, confidences),
-        "num_examples": len(rows),
+        "ece": expected_calibration_error(correct, confidences, n_bins=10),
+        "hcer": high_confidence_error_rate(correct, confidences, threshold=0.90),
+        "num_examples": len(rows)
     }
 
 def main():
@@ -154,6 +157,7 @@ def main():
     all_prediction_rows = []
     all_metric_rows = []
     experiment_conditions = [("clean", 0)]
+    all_calibration_rows = []
     
     for degradation in ["blur", "noise", "low_light"]:
         for severity in range(1, 6):
@@ -168,19 +172,31 @@ def main():
             batch_size=args.batch_size,
             degradation=degradation,
             severity=severity,
-            max_eval_batches=args.max_eval_batches,
+            max_eval_batches=args.max_eval_batches
         )
         all_prediction_rows.extend(rows)
         all_metric_rows.append(summarise_condition(rows))
+        correct = [row["correct"] for row in rows]
+        confidences = [row["confidence"] for row in rows]
+
+        for bin_row in calibration_bins(correct, confidences, n_bins=10):
+            bin_row["dataset"] = "MNIST"
+            bin_row["model"] = "SimpleCNN"
+            bin_row["degradation"] = degradation
+            bin_row["severity"] = severity
+            all_calibration_rows.append(bin_row)
 
     predictions_df = pd.DataFrame(all_prediction_rows)
     metrics_df = pd.DataFrame(all_metric_rows)
+    calibration_df = pd.DataFrame(all_calibration_rows)
 
     predictions_df.to_csv(output_path / "predictions.csv", index=False)
     metrics_df.to_csv(output_path / "metrics_summary.csv", index=False)
+    calibration_df.to_csv(output_path / "calibration_bins.csv", index=False)
     
     print(f"Saved predictions to {output_path / 'predictions.csv'}")
     print(f"Saved metrics to {output_path / 'metrics_summary.csv'}")
+    print(f"Saved calibration bins to {output_path / 'calibration_bins.csv'}")
 
 if __name__ == "__main__":
     main()
