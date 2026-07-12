@@ -6,11 +6,11 @@ It compares degraded results against the undegraded baseline.
 
 VALID_SIGNALS = {"trust", "caution", "do_not_trust"}
 
-def assign_trust_signal(condition_metrics: dict, clean_metrics: dict) -> dict:
+def assign_trust_signal(condition_metrics: dict, baseline_metrics: dict) -> dict:
     # measure how much each metric has changed from the undegraded baseline
-    accuracy_drop = clean_metrics["accuracy"] - condition_metrics["accuracy"]
-    ece_increase = condition_metrics["ece"] - clean_metrics["ece"]
-    gap_increase = (condition_metrics["confidence_accuracy_gap"] - clean_metrics["confidence_accuracy_gap"])
+    accuracy_drop = baseline_metrics["accuracy"] - condition_metrics["accuracy"]
+    ece_increase = condition_metrics["ece"] - baseline_metrics["ece"]
+    gap_increase = (condition_metrics["confidence_accuracy_gap"] - baseline_metrics["confidence_accuracy_gap"])
     hcer = condition_metrics["hcer"]
 
     # provisional thresholds chosen for initial testing, will be refined from experiment results    

@@ -19,10 +19,10 @@ def main():
     )
     image, _ = dataset[0]  # use one fixed test image for a repeatable visual check
     grid_images = []
-    for degradation in ["clean", "blur", "noise", "low_light"]:
+    for degradation in ["none", "blur", "noise", "low_light"]:
         for severity in range(0, 6):  # severity 0 is clean, 1 to 5 increase degradation
-            if degradation == "clean":
-                degraded = apply_degradation(image, "clean", 0)
+            if degradation == "none":
+                degraded = apply_degradation(image, "none", 0)
             else:
                 degraded = apply_degradation(image, degradation, severity)
             grid_images.append(degraded)

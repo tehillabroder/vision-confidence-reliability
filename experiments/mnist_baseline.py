@@ -1,6 +1,6 @@
 """Minimal MNIST baseline prototype.
 
-This trains a small CNN on MNIST, evaluates clean test images and saves
+This trains a small CNN on MNIST, evaluates undegraded test images and saves
 prediction-level results. It is a proof of concept for the later reliability
 framework, not an attempt to train the best classifier.
 """
@@ -98,7 +98,7 @@ def evaluate_with_predictions(model, loader, device):
                 "predicted_label": int(predictions[i].item()),
                 "correct": int(batch_correct[i].item()),
                 "confidence": float(confidences[i].item()),
-                "degradation": "clean",
+                "degradation": "none",
                 "severity": 0,
             })
             image_id += 1
@@ -120,7 +120,7 @@ def save_outputs(rows, accuracy: float, output_dir: str):
     metrics_df = pd.DataFrame([{
         "dataset": "MNIST",
         "model": "SimpleCNN",
-        "degradation": "clean",
+        "degradation": "none",
         "severity": 0,
         "accuracy": accuracy_from_correct(correct),
         "mean_confidence": mean_confidence(confidences),
@@ -142,7 +142,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="fixed random seed")
     # cap dataset size to speed up debugging/tests
     parser.add_argument("--max-train-batches", type=int, default=None, help="cap training batches per epoch for quick debugging")
-    parser.add_argument("--output-dir", type=str, default="results/mnist_clean")
+    parser.add_argument("--output-dir", type=str, default="results/mnist_undegraded")
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -160,7 +160,7 @@ def main():
     train(model, train_loader, device, args.epochs, args.max_train_batches)
 
     accuracy, rows = evaluate_with_predictions(model, test_loader, device)
-    print(f"Clean test accuracy: {accuracy * 100:.2f}%")
+    print(f"Undegraded test accuracy: {accuracy * 100:.2f}%")
 
     save_outputs(rows, accuracy, args.output_dir)
 

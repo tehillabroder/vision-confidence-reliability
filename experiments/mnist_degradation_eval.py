@@ -79,7 +79,8 @@ def train(model, loader, device, epochs: int, max_train_batches=None):
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-        print(f"Epoch {epoch}/{epochs} avg loss {running_loss / max(batches, 1):.4f}")
+        average_loss = running_loss / max(batches, 1)  # avoid division by zero
+        print(f"Epoch {epoch}/{epochs} average loss: {average_loss:.4f}")
 
 @torch.no_grad()
 def evaluate_condition(model, device, batch_size: int, degradation: str, severity: int, max_eval_batches=None):
@@ -125,6 +126,7 @@ def summarise_condition(rows):
         "mean_confidence": mean_confidence(confidences),
         "confidence_accuracy_gap": confidence_accuracy_gap(correct, confidences),
         "ece": expected_calibration_error(correct, confidences, n_bins=10),
+        # 0.90 is the initial high-confidence threshold
         "hcer": high_confidence_error_rate(correct, confidences, threshold=0.90),
         "num_examples": len(rows)
     }
@@ -156,7 +158,7 @@ def main():
     
     all_prediction_rows = []
     all_metric_rows = []
-    experiment_conditions = [("clean", 0)]
+    experiment_conditions = [("none", 0)]
     all_calibration_rows = []
     
     for degradation in ["blur", "noise", "low_light"]:
