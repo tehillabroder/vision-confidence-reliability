@@ -5,9 +5,9 @@ import torch
 from src.degradations.image_degradations import apply_degradation
 
 def test_clean_severity_zero_returns_same_image():
-    # confirm clean severity 0 leaves the image unchanged
+    # confirm the undegraded condition leaves the image unchanged
     image = torch.rand(1, 28, 28)  # one MNIST-sized greyscale image
-    degraded = apply_degradation(image, "clean", 0)
+    degraded = apply_degradation(image, "none", 0)
     assert torch.equal(image, degraded)
 
 def test_invalid_degradation_raises_error():
