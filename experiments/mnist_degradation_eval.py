@@ -16,9 +16,8 @@ from src.metrics.reliability import calibration_bins, expected_calibration_error
 from src.models.checkpoints import load_model_checkpoint
 from src.models.simple_cnn import SimpleCNN
 from src.utils.seeds import set_seed
+from src.utils.config import load_config, save_config_copy
 
-DEGRADATIONS = ("blur", "noise", "low_light")
-SEVERITY_LEVELS = range(1, 6)
 
 def validate_evaluation_settings(ece_bins: int, hcer_threshold: float) -> None:
     if ece_bins <= 0:
@@ -101,65 +100,77 @@ def load_evaluation_model(
     model.eval()
     return model, metadata
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="MNIST degradation evaluation")
-    parser.add_argument("--checkpoint", default="checkpoints/mnist_simple_cnn.pt")
-    parser.add_argument("--data-dir", default="data")
-    parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--max-eval-batches", type=int, default=None)
-    parser.add_argument("--output-dir", default="results/mnist_degradation_eval")
-    parser.add_argument("--ece-bins", type=int, default=10)
-    parser.add_argument("--hcer-threshold", type=float, default=0.90)
-
+    parser.add_argument("--config", default="configs/mnist.yaml")
     args = parser.parse_args()
-    validate_evaluation_settings(args.ece_bins, args.hcer_threshold)
-    set_seed(args.seed)
 
-    # ensure output directory exists before saving results
-    output_path = Path(args.output_dir)
+    config_path = Path(args.config)
+    config = load_config(config_path)
+    if config["dataset"] != "MNIST" or config["model"] != "SimpleCNN":
+        raise ValueError("MNIST evaluation requires dataset MNIST and model SimpleCNN.")
+
+    evaluation_config = config["evaluation"]
+    validate_evaluation_settings(
+        evaluation_config["ece_bins"],
+        evaluation_config["fixed_hcer_threshold"]
+    )
+    set_seed(config["seed"])
+
+    output_path = Path(config["output_dir"])
     output_path.mkdir(parents=True, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    model, metadata = load_evaluation_model(Path(args.checkpoint), device)
+    model, metadata = load_evaluation_model(Path(config["checkpoint"]), device)
     if "validation_accuracy" in metadata:
         print(f"Checkpoint validation accuracy: {metadata['validation_accuracy']:.4f}")
-    
+
     all_prediction_rows = []
     all_metric_rows = []
-    experiment_conditions = [("none", 0)]
     all_calibration_rows = []
-    
-    for degradation in DEGRADATIONS:
-        for severity in SEVERITY_LEVELS:
+    experiment_conditions = [("none", 0)]
+
+    for degradation in evaluation_config["degradations"]:
+        for severity in evaluation_config["severity_levels"]:
             experiment_conditions.append((degradation, severity))
-    
+
     for degradation, severity in experiment_conditions:
         print(f"Evaluating {degradation}, severity {severity}")
 
         rows = evaluate_condition(
             model=model,
             device=device,
-            data_dir=args.data_dir,
-            batch_size=args.batch_size,
+            data_dir=config["data_dir"],
+            batch_size=evaluation_config["batch_size"],
             degradation=degradation,
             severity=severity,
-            seed=args.seed,
-            max_eval_batches=args.max_eval_batches
+            seed=config["seed"],
+            max_eval_batches=evaluation_config["max_eval_batches"]
         )
         all_prediction_rows.extend(rows)
-        all_metric_rows.append(summarise_condition(rows, args.ece_bins, args.hcer_threshold))        
+        all_metric_rows.append(
+            summarise_condition(
+                rows,
+                evaluation_config["ece_bins"],
+                evaluation_config["fixed_hcer_threshold"]
+            )
+        )
+
         correct = [row["correct"] for row in rows]
         confidences = [row["confidence"] for row in rows]
-        
-        condition_bins = calibration_bins(correct, confidences, n_bins=args.ece_bins)
+        condition_bins = calibration_bins(
+            correct,
+            confidences,
+            n_bins=evaluation_config["ece_bins"]
+        )
+
         for bin_row in condition_bins:
-            bin_row["dataset"] = "MNIST"
-            bin_row["model"] = "SimpleCNN"
-            bin_row["seed"] = args.seed
-            bin_row["ece_bins"] = args.ece_bins
+            bin_row["dataset"] = config["dataset"]
+            bin_row["model"] = config["model"]
+            bin_row["seed"] = config["seed"]
+            bin_row["ece_bins"] = evaluation_config["ece_bins"]
             bin_row["degradation"] = degradation
             bin_row["severity"] = severity
             all_calibration_rows.append(bin_row)
@@ -167,14 +178,17 @@ def main():
     predictions_path = output_path / "predictions.csv"
     metrics_path = output_path / "metrics_summary.csv"
     calibration_path = output_path / "calibration_bins.csv"
+    config_copy_path = output_path / "config.yaml"
 
     pd.DataFrame(all_prediction_rows).to_csv(predictions_path, index=False)
     pd.DataFrame(all_metric_rows).to_csv(metrics_path, index=False)
     pd.DataFrame(all_calibration_rows).to_csv(calibration_path, index=False)
+    save_config_copy(config_path, config_copy_path)
 
     print(f"Saved predictions to {predictions_path}")
     print(f"Saved metrics to {metrics_path}")
     print(f"Saved calibration bins to {calibration_path}")
+    print(f"Saved config to {config_copy_path}")
 
 if __name__ == "__main__":
     main()

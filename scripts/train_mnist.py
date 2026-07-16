@@ -11,6 +11,7 @@ from src.datasets.mnist import build_mnist_train_validation_datasets
 from src.models.checkpoints import save_model_checkpoint
 from src.models.simple_cnn import SimpleCNN
 from src.utils.seeds import set_seed
+from src.utils.config import load_config, save_config_copy
 
 def train_model(
     model: nn.Module,
@@ -67,35 +68,35 @@ def calculate_accuracy(model: nn.Module, loader: DataLoader, device: torch.devic
 
     return correct / total
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Train the MNIST SimpleCNN checkpoint")
-    parser.add_argument("--epochs", type=int, default=1)
-    parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--validation-size", type=int, default=5000)
-    parser.add_argument("--max-train-batches", type=int, default=None)
-    parser.add_argument("--data-dir", default="data")
-    parser.add_argument("--checkpoint", default="checkpoints/mnist_simple_cnn.pt")
+    parser.add_argument("--config", default="configs/mnist.yaml")
     args = parser.parse_args()
 
-    set_seed(args.seed)
+    config_path = Path(args.config)
+    config = load_config(config_path)
+    if config["dataset"] != "MNIST" or config["model"] != "SimpleCNN":
+        raise ValueError("MNIST training requires dataset MNIST and model SimpleCNN.")
+
+    training_config = config["training"]
+    set_seed(config["seed"])
 
     train_set, validation_set = build_mnist_train_validation_datasets(
-        data_dir=args.data_dir,
-        validation_size=args.validation_size,
-        seed=args.seed
+        data_dir=config["data_dir"],
+        validation_size=training_config["validation_size"],
+        seed=config["seed"]
     )
 
-    train_generator = torch.Generator().manual_seed(args.seed)
+    train_generator = torch.Generator().manual_seed(config["seed"])
     train_loader = DataLoader(
         train_set,
-        batch_size=args.batch_size,
+        batch_size=training_config["batch_size"],
         shuffle=True,
         generator=train_generator
     )
     validation_loader = DataLoader(
         validation_set,
-        batch_size=args.batch_size,
+        batch_size=training_config["batch_size"],
         shuffle=False
     )
 
@@ -109,37 +110,33 @@ def main():
         model=model,
         loader=train_loader,
         device=device,
-        epochs=args.epochs,
-        max_train_batches=args.max_train_batches
+        epochs=training_config["epochs"],
+        max_train_batches=training_config["max_train_batches"]
     )
 
     validation_accuracy = calculate_accuracy(model, validation_loader, device)
-    checkpoint_path = Path(args.checkpoint)
+    checkpoint_path = Path(config["checkpoint"])
+    config_copy_path = checkpoint_path.with_name(f"{checkpoint_path.stem}_config.yaml")
 
     metadata = {
-        "dataset": "MNIST",
-        "model": "SimpleCNN",
-        "seed": args.seed,
-        "epochs": args.epochs,
-        "batch_size": args.batch_size,
+        "dataset": config["dataset"],
+        "model": config["model"],
+        "seed": config["seed"],
+        "epochs": training_config["epochs"],
+        "batch_size": training_config["batch_size"],
         "train_size": len(train_set),
         "validation_size": len(validation_set),
         "validation_accuracy": validation_accuracy,
-        # record that no training augmentations were used
-        "training_augmentation": {
-            "resize": False,
-            "random_crop": False,
-            "rotation": False,
-            "blur": False,
-            "noise": False,
-            "brightness_contrast": False
-        }
+        "training_augmentation": training_config["augmentation"],
+        "config": str(config_copy_path)
     }
 
     save_model_checkpoint(model, checkpoint_path, metadata)
+    save_config_copy(config_path, config_copy_path)
 
     print(f"Validation accuracy: {validation_accuracy:.4f}")
     print(f"Saved checkpoint to {checkpoint_path}")
+    print(f"Saved config to {config_copy_path}")
 
 if __name__ == "__main__":
     main()

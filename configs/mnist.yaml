@@ -1,0 +1,31 @@
+dataset: MNIST
+model: SimpleCNN
+data_dir: data
+checkpoint: checkpoints/mnist_simple_cnn.pt
+output_dir: results/mnist_degradation_eval
+seed: 42
+
+training:
+  epochs: 1
+  batch_size: 64
+  validation_size: 5000
+  max_train_batches: null
+  augmentation:
+    resize: false
+    random_crop: false
+    rotation: false
+    blur: false
+    noise: false
+    brightness_contrast: false
+
+evaluation:
+  batch_size: 64
+  max_eval_batches: null
+  degradations:
+    - blur
+    - noise
+    - low_light
+  severity_levels: [1, 2, 3, 4, 5]
+  ece_bins: 10
+  fixed_hcer_threshold: 0.90
+  adaptive_hcer_percentile: 90
