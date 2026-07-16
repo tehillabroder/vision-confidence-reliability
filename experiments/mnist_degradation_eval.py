@@ -2,107 +2,56 @@
 
 import argparse
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset
-from torchvision import datasets, transforms
-from src.degradations.image_degradations import apply_degradation
+from torch.utils.data import DataLoader
 
+from src.datasets.mnist import DegradedMNIST
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
+from src.metrics.reliability import calibration_bins, expected_calibration_error, high_confidence_error_rate
+from src.models.checkpoints import load_model_checkpoint
 from src.models.simple_cnn import SimpleCNN
-from src.metrics.reliability import (calibration_bins, expected_calibration_error, high_confidence_error_rate,)
+from src.utils.seeds import set_seed
 
-DATA_DIR = "data"
-# standard mnist mean and standard deviation
-NORMALISE = transforms.Normalize((0.1307,), (0.3081,))
-
-def set_seed(seed: int):
-    # keep runs repeatable across environments
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-class DegradedMNIST(Dataset):
-    """MNIST test set with degradation applied before normalisation."""
-    def __init__(self, degradation: str, severity: int):
-        self.base_dataset = datasets.MNIST(
-            DATA_DIR,
-            train=False,
-            download=True,
-            transform=transforms.ToTensor()
-        )
-        self.degradation = degradation
-        self.severity = severity
-    def __len__(self):
-        return len(self.base_dataset)
-    def __getitem__(self, index):
-        image, label = self.base_dataset[index]
-        degraded_image = apply_degradation(
-            image,
-            self.degradation,
-            self.severity
-        )
-        normalised_image = NORMALISE(degraded_image)
-        return normalised_image, label, index
-
-def get_train_loader(batch_size: int):
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        NORMALISE,
-    ])
-    train_set = datasets.MNIST(
-        DATA_DIR,
-        train=True,
-        download=True,
-        transform=transform
-    )
-    return DataLoader(train_set, batch_size=batch_size, shuffle=True)
-
-def train(model, loader, device, epochs: int, max_train_batches=None):
-    model.train()
-    # standard learning rate for adam optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    criterion = nn.CrossEntropyLoss()
-    for epoch in range(1, epochs + 1):
-        running_loss = 0.0
-        batches = 0
-        for images, labels in loader:
-            if max_train_batches is not None and batches >= max_train_batches:
-                break
-            batches += 1
-            images, labels = images.to(device), labels.to(device)
-            optimizer.zero_grad()
-            loss = criterion(model(images), labels)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        average_loss = running_loss / max(batches, 1)  # avoid division by zero
-        print(f"Epoch {epoch}/{epochs} average loss: {average_loss:.4f}")
+DEGRADATIONS = ("blur", "noise", "low_light")
+SEVERITY_LEVELS = range(1, 6)
 
 @torch.no_grad()
-def evaluate_condition(model, device, batch_size: int, degradation: str, severity: int, max_eval_batches=None):
-    dataset = DegradedMNIST(degradation=degradation, severity=severity)
+def evaluate_condition(
+    model: nn.Module,
+    device: torch.device,
+    data_dir: str,
+    batch_size: int,
+    degradation: str,
+    severity: int,
+    seed: int,
+    max_eval_batches: Optional[int]
+) -> list[dict]:
+    # reuse random draws so noise comparisons stay controlled
+    set_seed(seed)
+    dataset = DegradedMNIST(data_dir, degradation, severity)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    rows = []
-    batches = 0
     model.eval()
+    rows = []
     
-    for images, labels, image_ids in loader:
-        if max_eval_batches is not None and batches >= max_eval_batches:
+    for batch_index, (images, labels, image_ids) in enumerate(loader):
+        if max_eval_batches is not None and batch_index >= max_eval_batches:
             break
-        batches += 1
+        
         images, labels = images.to(device), labels.to(device)
         logits = model(images)
-        probabilities = F.softmax(logits, dim=1)
+        probabilities = F.softmax(model(images), dim=1)
         confidences, predictions = probabilities.max(dim=1)
         batch_correct = predictions.eq(labels)
         for i in range(labels.size(0)):
             rows.append({
                 "dataset": "MNIST",
                 "model": "SimpleCNN",
+                "seed": seed,
                 "image_id": int(image_ids[i].item()),
                 "true_label": int(labels[i].item()),
                 "predicted_label": int(predictions[i].item()),
@@ -111,34 +60,41 @@ def evaluate_condition(model, device, batch_size: int, degradation: str, severit
                 "degradation": degradation,
                 "severity": severity
             })
+    if not rows:
+        raise ValueError("Evaluation produced no predictions.")
+            
     return rows
 
-def summarise_condition(rows):
+def summarise_condition(rows: list[dict], n_bins: int, hcer_threshold: float) -> dict:
     correct = [row["correct"] for row in rows]
     confidences = [row["confidence"] for row in rows]
     first_row = rows[0]
     return {
         "dataset": first_row["dataset"],
         "model": first_row["model"],
+        "seed": first_row["seed"],
         "degradation": first_row["degradation"],
         "severity": first_row["severity"],
         "accuracy": accuracy_from_correct(correct),
         "mean_confidence": mean_confidence(confidences),
         "confidence_accuracy_gap": confidence_accuracy_gap(correct, confidences),
-        "ece": expected_calibration_error(correct, confidences, n_bins=10),
-        # 0.90 is the initial high-confidence threshold
-        "hcer": high_confidence_error_rate(correct, confidences, threshold=0.90),
+        "ece": expected_calibration_error(correct, confidences, n_bins=n_bins),
+        "hcer": high_confidence_error_rate(correct, confidences, threshold=hcer_threshold),
+        "ece_bins": n_bins,
+        "hcer_threshold": hcer_threshold,
         "num_examples": len(rows)
     }
 
 def main():
     parser = argparse.ArgumentParser(description="MNIST degradation evaluation")
-    parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument("--checkpoint", default="checkpoints/mnist_simple_cnn.pt")
+    parser.add_argument("--data-dir", default="data")
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--max-train-batches", type=int, default=None)
     parser.add_argument("--max-eval-batches", type=int, default=None)
-    parser.add_argument("--output-dir", type=str, default="results/mnist_degradation_eval")
+    parser.add_argument("--output-dir", default="results/mnist_degradation_eval")
+    parser.add_argument("--ece-bins", type=int, default=10)
+    parser.add_argument("--hcer-threshold", type=float, default=0.90)
 
     args = parser.parse_args()
     set_seed(args.seed)
@@ -150,19 +106,18 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    train_loader = get_train_loader(args.batch_size)
-
     model = SimpleCNN().to(device)
-    
-    train(model, train_loader, device, args.epochs, args.max_train_batches)
+    metadata = load_model_checkpoint(model, Path(args.checkpoint), device)
+    if "validation_accuracy" in metadata:
+        print(f"Checkpoint validation accuracy: {metadata['validation_accuracy']:.4f}")
     
     all_prediction_rows = []
     all_metric_rows = []
     experiment_conditions = [("none", 0)]
     all_calibration_rows = []
     
-    for degradation in ["blur", "noise", "low_light"]:
-        for severity in range(1, 6):
+    for degradation in DEGRADATIONS:
+        for severity in SEVERITY_LEVELS:
             experiment_conditions.append((degradation, severity))
     
     for degradation, severity in experiment_conditions:
@@ -171,34 +126,39 @@ def main():
         rows = evaluate_condition(
             model=model,
             device=device,
+            data_dir=args.data_dir,
             batch_size=args.batch_size,
             degradation=degradation,
             severity=severity,
+            seed=args.seed,
             max_eval_batches=args.max_eval_batches
         )
         all_prediction_rows.extend(rows)
-        all_metric_rows.append(summarise_condition(rows))
+        all_metric_rows.append(summarise_condition(rows, args.ece_bins, args.hcer_threshold))        
         correct = [row["correct"] for row in rows]
         confidences = [row["confidence"] for row in rows]
-
-        for bin_row in calibration_bins(correct, confidences, n_bins=10):
+        
+        condition_bins = calibration_bins(correct, confidences, n_bins=args.ece_bins)
+        for bin_row in condition_bins:
             bin_row["dataset"] = "MNIST"
             bin_row["model"] = "SimpleCNN"
+            bin_row["seed"] = args.seed
+            bin_row["ece_bins"] = args.ece_bins
             bin_row["degradation"] = degradation
             bin_row["severity"] = severity
             all_calibration_rows.append(bin_row)
 
-    predictions_df = pd.DataFrame(all_prediction_rows)
-    metrics_df = pd.DataFrame(all_metric_rows)
-    calibration_df = pd.DataFrame(all_calibration_rows)
+    predictions_path = output_path / "predictions.csv"
+    metrics_path = output_path / "metrics_summary.csv"
+    calibration_path = output_path / "calibration_bins.csv"
 
-    predictions_df.to_csv(output_path / "predictions.csv", index=False)
-    metrics_df.to_csv(output_path / "metrics_summary.csv", index=False)
-    calibration_df.to_csv(output_path / "calibration_bins.csv", index=False)
-    
-    print(f"Saved predictions to {output_path / 'predictions.csv'}")
-    print(f"Saved metrics to {output_path / 'metrics_summary.csv'}")
-    print(f"Saved calibration bins to {output_path / 'calibration_bins.csv'}")
+    pd.DataFrame(all_prediction_rows).to_csv(predictions_path, index=False)
+    pd.DataFrame(all_metric_rows).to_csv(metrics_path, index=False)
+    pd.DataFrame(all_calibration_rows).to_csv(calibration_path, index=False)
+
+    print(f"Saved predictions to {predictions_path}")
+    print(f"Saved metrics to {metrics_path}")
+    print(f"Saved calibration bins to {calibration_path}")
 
 if __name__ == "__main__":
     main()
