@@ -20,6 +20,12 @@ from src.utils.seeds import set_seed
 DEGRADATIONS = ("blur", "noise", "low_light")
 SEVERITY_LEVELS = range(1, 6)
 
+def validate_evaluation_settings(ece_bins: int, hcer_threshold: float) -> None:
+    if ece_bins <= 0:
+        raise ValueError("ECE bin count must be greater than zero.")
+    if not 0.0 <= hcer_threshold <= 1.0:
+        raise ValueError("HCER threshold must be between 0 and 1.")
+    
 @torch.no_grad()
 def evaluate_condition(
     model: nn.Module,
@@ -35,6 +41,7 @@ def evaluate_condition(
     set_seed(seed)
     dataset = DegradedMNIST(data_dir, degradation, severity)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    
     model.eval()
     rows = []
     
@@ -43,7 +50,6 @@ def evaluate_condition(
             break
         
         images, labels = images.to(device), labels.to(device)
-        logits = model(images)
         probabilities = F.softmax(model(images), dim=1)
         confidences, predictions = probabilities.max(dim=1)
         batch_correct = predictions.eq(labels)
@@ -66,6 +72,7 @@ def evaluate_condition(
     return rows
 
 def summarise_condition(rows: list[dict], n_bins: int, hcer_threshold: float) -> dict:
+    validate_evaluation_settings(n_bins, hcer_threshold)
     correct = [row["correct"] for row in rows]
     confidences = [row["confidence"] for row in rows]
     first_row = rows[0]
@@ -85,6 +92,15 @@ def summarise_condition(rows: list[dict], n_bins: int, hcer_threshold: float) ->
         "num_examples": len(rows)
     }
 
+def load_evaluation_model(
+    checkpoint_path: Path,
+    device: torch.device
+) -> tuple[nn.Module, dict]:
+    model = SimpleCNN().to(device)
+    metadata = load_model_checkpoint(model, checkpoint_path, device)
+    model.eval()
+    return model, metadata
+
 def main():
     parser = argparse.ArgumentParser(description="MNIST degradation evaluation")
     parser.add_argument("--checkpoint", default="checkpoints/mnist_simple_cnn.pt")
@@ -97,6 +113,7 @@ def main():
     parser.add_argument("--hcer-threshold", type=float, default=0.90)
 
     args = parser.parse_args()
+    validate_evaluation_settings(args.ece_bins, args.hcer_threshold)
     set_seed(args.seed)
 
     # ensure output directory exists before saving results
@@ -106,8 +123,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    model = SimpleCNN().to(device)
-    metadata = load_model_checkpoint(model, Path(args.checkpoint), device)
+    model, metadata = load_evaluation_model(Path(args.checkpoint), device)
     if "validation_accuracy" in metadata:
         print(f"Checkpoint validation accuracy: {metadata['validation_accuracy']:.4f}")
     
