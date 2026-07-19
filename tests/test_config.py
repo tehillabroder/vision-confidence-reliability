@@ -14,6 +14,7 @@ def valid_config() -> dict:
         "data_dir": "data",
         "checkpoint": "checkpoints/mnist_simple_cnn.pt",
         "output_dir": "results/mnist_degradation_eval",
+        "validation_profile": "results/mnist_validation_profile.json",
         "seed": 42,
         "training": {
             "epochs": 1,

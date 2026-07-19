@@ -33,7 +33,7 @@ def _require_number_in_range(value: object, name: str, minimum: float, maximum: 
         raise ValueError(f"{name} must be between {minimum} and {maximum}.")
 
 def validate_config(config: dict) -> None:
-    for key in ("dataset", "model", "data_dir", "checkpoint", "output_dir"):
+    for key in ("dataset", "model", "data_dir", "checkpoint", "output_dir", "validation_profile"):
         _require_non_empty_string(config.get(key), key)
 
     seed = config.get("seed")
