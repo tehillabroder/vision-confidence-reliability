@@ -86,10 +86,20 @@ def test_summary_saves_evaluation_settings():
             "confidence": 0.60
         }
     ]
-
-    summary = summarise_condition(rows, n_bins=5, hcer_threshold=0.90)
+    summary = summarise_condition(
+        rows=rows,
+        n_bins=5,
+        fixed_hcer_threshold=0.90,
+        adaptive_hcer_threshold=0.60,
+        adaptive_hcer_percentile=90
+    )
 
     assert summary["seed"] == 42
     assert summary["ece_bins"] == 5
-    assert summary["hcer_threshold"] == 0.90
+    assert summary["fixed_hcer_threshold"] == 0.90
+    assert summary["adaptive_hcer_threshold"] == 0.60
+    assert summary["adaptive_hcer_percentile"] == 90
+    assert summary["hcer"] == summary["hcer_fixed"]
+    assert summary["hcer_fixed"] == 0.0
+    assert summary["hcer_adaptive"] == 0.5
     assert summary["num_examples"] == 2

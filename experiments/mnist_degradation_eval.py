@@ -17,6 +17,7 @@ from src.models.checkpoints import load_model_checkpoint
 from src.models.simple_cnn import SimpleCNN
 from src.utils.seeds import set_seed
 from src.utils.config import load_config, save_config_copy
+from src.evaluation.validation_profile import load_validation_profile, validate_validation_profile_source
 
 
 def validate_evaluation_settings(ece_bins: int, hcer_threshold: float) -> None:
@@ -70,11 +71,22 @@ def evaluate_condition(
             
     return rows
 
-def summarise_condition(rows: list[dict], n_bins: int, hcer_threshold: float) -> dict:
-    validate_evaluation_settings(n_bins, hcer_threshold)
+def summarise_condition(
+    rows: list[dict],
+    n_bins: int,
+    fixed_hcer_threshold: float,
+    adaptive_hcer_threshold: float,
+    adaptive_hcer_percentile: float
+) -> dict:
+    validate_evaluation_settings(n_bins, fixed_hcer_threshold)
+    validate_evaluation_settings(n_bins, adaptive_hcer_threshold)
+
     correct = [row["correct"] for row in rows]
     confidences = [row["confidence"] for row in rows]
     first_row = rows[0]
+    fixed_hcer = high_confidence_error_rate(correct, confidences, threshold=fixed_hcer_threshold)
+    adaptive_hcer = high_confidence_error_rate(correct, confidences, threshold=adaptive_hcer_threshold)
+
     return {
         "dataset": first_row["dataset"],
         "model": first_row["model"],
@@ -85,9 +97,14 @@ def summarise_condition(rows: list[dict], n_bins: int, hcer_threshold: float) ->
         "mean_confidence": mean_confidence(confidences),
         "confidence_accuracy_gap": confidence_accuracy_gap(correct, confidences),
         "ece": expected_calibration_error(correct, confidences, n_bins=n_bins),
-        "hcer": high_confidence_error_rate(correct, confidences, threshold=hcer_threshold),
+        # keep the original column until the trust and plotting code is updated
+        "hcer": fixed_hcer,
+        "hcer_fixed": fixed_hcer,
+        "hcer_adaptive": adaptive_hcer,
         "ece_bins": n_bins,
-        "hcer_threshold": hcer_threshold,
+        "fixed_hcer_threshold": fixed_hcer_threshold,
+        "adaptive_hcer_threshold": adaptive_hcer_threshold,
+        "adaptive_hcer_percentile": adaptive_hcer_percentile,
         "num_examples": len(rows)
     }
 
@@ -111,9 +128,25 @@ def main() -> None:
         raise ValueError("MNIST evaluation requires dataset MNIST and model SimpleCNN.")
 
     evaluation_config = config["evaluation"]
+    validation_profile = load_validation_profile(Path(config["validation_profile"]))
+    validate_validation_profile_source(
+        profile=validation_profile,
+        dataset=config["dataset"],
+        model=config["model"],
+        checkpoint=config["checkpoint"],
+        seed=config["seed"],
+        fixed_hcer_threshold=evaluation_config["fixed_hcer_threshold"],
+        adaptive_hcer_percentile=evaluation_config["adaptive_hcer_percentile"]
+    )
+
+    adaptive_hcer_threshold = validation_profile["adaptive_hcer_threshold"]
     validate_evaluation_settings(
         evaluation_config["ece_bins"],
         evaluation_config["fixed_hcer_threshold"]
+    )
+    validate_evaluation_settings(
+        evaluation_config["ece_bins"],
+        adaptive_hcer_threshold
     )
     set_seed(config["seed"])
 
@@ -152,9 +185,11 @@ def main() -> None:
         all_prediction_rows.extend(rows)
         all_metric_rows.append(
             summarise_condition(
-                rows,
-                evaluation_config["ece_bins"],
-                evaluation_config["fixed_hcer_threshold"]
+                rows=rows,
+                n_bins=evaluation_config["ece_bins"],
+                fixed_hcer_threshold=evaluation_config["fixed_hcer_threshold"],
+                adaptive_hcer_threshold=adaptive_hcer_threshold,
+                adaptive_hcer_percentile=evaluation_config["adaptive_hcer_percentile"]
             )
         )
 

@@ -93,3 +93,77 @@ def save_validation_profile(profile: dict, output_path: Path) -> Path:
         json.dump(profile, output_file, indent=2)
 
     return output_path
+
+def load_validation_profile(profile_path: Path) -> dict:
+    if not profile_path.exists():
+        raise FileNotFoundError(f"Validation profile not found: {profile_path}")
+
+    try:
+        with profile_path.open("r", encoding="utf-8") as profile_file:
+            profile = json.load(profile_file)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"Invalid validation profile JSON: {profile_path}") from error
+
+    if not isinstance(profile, dict):
+        raise ValueError("Validation profile must contain a dictionary.")
+
+    required_fields = (
+        "dataset",
+        "model",
+        "checkpoint",
+        "seed",
+        "degradation",
+        "severity",
+        "validation_sample_count",
+        "baseline_accuracy",
+        "baseline_mean_confidence",
+        "baseline_ece",
+        "baseline_confidence_accuracy_gap",
+        "baseline_fixed_hcer",
+        "fixed_hcer_threshold",
+        "adaptive_hcer_percentile",
+        "adaptive_hcer_threshold"
+    )
+    missing_fields = [field for field in required_fields if field not in profile]
+    if missing_fields:
+        raise ValueError(f"Validation profile is missing: {', '.join(missing_fields)}.")
+
+    if profile["degradation"] != "none" or profile["severity"] != 0:
+        raise ValueError("Validation profile must use the undegraded condition.")
+
+    sample_count = profile["validation_sample_count"]
+    if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count <= 0:
+        raise ValueError("Validation sample count must be a positive integer.")
+
+    for field in ("fixed_hcer_threshold", "adaptive_hcer_threshold"):
+        value = profile[field]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0.0 <= value <= 1.0:
+            raise ValueError(f"{field} must be between 0 and 1.")
+
+    percentile = profile["adaptive_hcer_percentile"]
+    if isinstance(percentile, bool) or not isinstance(percentile, (int, float)) or not 0.0 <= percentile <= 100.0:
+        raise ValueError("adaptive_hcer_percentile must be between 0 and 100.")
+
+    return profile
+
+def validate_validation_profile_source(
+    profile: dict,
+    dataset: str,
+    model: str,
+    checkpoint: str,
+    seed: int,
+    fixed_hcer_threshold: float,
+    adaptive_hcer_percentile: float
+) -> None:
+    if profile["dataset"] != dataset:
+        raise ValueError("Validation profile dataset does not match the experiment.")
+    if profile["model"] != model:
+        raise ValueError("Validation profile model does not match the experiment.")
+    if Path(profile["checkpoint"]) != Path(checkpoint):
+        raise ValueError("Validation profile checkpoint does not match the experiment.")
+    if profile["seed"] != seed:
+        raise ValueError("Validation profile seed does not match the experiment.")
+    if profile["fixed_hcer_threshold"] != fixed_hcer_threshold:
+        raise ValueError("Validation profile fixed HCER threshold does not match the configuration.")
+    if profile["adaptive_hcer_percentile"] != adaptive_hcer_percentile:
+        raise ValueError("Validation profile adaptive percentile does not match the configuration.")
