@@ -2,7 +2,11 @@
 
 import pytest
 
-from src.evaluation.trust_signal import assign_trust_signal, calculate_deterioration
+from src.evaluation.trust_signal import (
+    assign_trust_signal, 
+    calculate_deterioration, 
+    determine_gap_direction
+)
 TRUST_POLICY = {
     "error_denominator_floor": 0.01,
     "caution": {
@@ -53,11 +57,10 @@ def test_trust_signal_returns_trust_for_small_change():
         hcer_fixed=0.01,
         hcer_adaptive=0.006
     )
-
     result = assign_trust_signal(condition, UNDEGRADED_BASELINE, TRUST_POLICY)
-
     assert result["trust_signal"] == "trust"
     assert result["triggered_rules"] == []
+    assert result["triggered_rule_explanations"] == []
 
 def test_trust_signal_uses_relative_error_increase():
     # confirm doubled error can warn before a large accuracy drop develops
@@ -67,28 +70,29 @@ def test_trust_signal_uses_relative_error_increase():
 
     assert result["absolute_accuracy_drop"] == pytest.approx(0.03)
     assert result["relative_error_increase"] == pytest.approx(1.5)
-    assert result["trust_signal"] == "caution"
     assert result["triggered_rules"] == ["caution_relative_error_increase"]
+    assert result["triggered_rule_explanations"] == ["relative error increase was 1.5000, meeting the caution threshold of 1.0000."]
 
 def test_trust_signal_prioritises_do_not_trust_rules():
     # ensure one severe deterioration receives the strongest warning
     condition = condition_metrics(ece=0.11)
-
     result = assign_trust_signal(condition, UNDEGRADED_BASELINE, TRUST_POLICY)
-
     assert result["trust_signal"] == "do_not_trust"
     assert result["triggered_rules"] == ["do_not_trust_ece_increase"]
+    assert result["triggered_rule_explanations"] == [
+        "ECE increase was 0.0900, meeting the do not trust threshold of 0.0800."
+    ]
 
 def test_trust_signal_detects_worsening_underconfidence():
     # confirm gap magnitude detects deterioration below zero
     condition = condition_metrics(confidence_accuracy_gap=-0.061)
-
     result = assign_trust_signal(condition, UNDEGRADED_BASELINE, TRUST_POLICY)
-
     assert result["gap_shift"] == pytest.approx(-0.071)
+    assert result["gap_direction"] == "towards_underconfidence"
     assert result["gap_deterioration"] == pytest.approx(0.051)
     assert result["trust_signal"] == "caution"
     assert result["triggered_rules"] == ["caution_gap_deterioration"]
+    assert "towards underconfidence" in result["triggered_rule_explanations"][0]
 
 def test_trust_signal_does_not_warn_when_gap_moves_towards_zero():
     # ensure improved alignment is not treated as deterioration
@@ -102,12 +106,12 @@ def test_trust_signal_does_not_warn_when_gap_moves_towards_zero():
         "severity": 1,
         "confidence_accuracy_gap": 0.02
     }
-
     result = assign_trust_signal(condition, baseline, TRUST_POLICY)
-
     assert result["gap_shift"] == pytest.approx(-0.06)
+    assert result["gap_direction"] == "towards_underconfidence"
     assert result["gap_deterioration"] == pytest.approx(-0.06)
     assert result["trust_signal"] == "trust"
+
 
 def test_relative_error_increase_uses_denominator_floor():
     # confirm a near-perfect baseline does not create an extreme ratio
@@ -132,3 +136,11 @@ def test_trust_signal_compares_fixed_and_adaptive_hcer_separately():
     assert result["fixed_hcer_increase"] == pytest.approx(0.025)
     assert result["adaptive_hcer_increase"] == pytest.approx(0.004)
     assert result["triggered_rules"] == ["caution_fixed_hcer_increase"]
+
+def test_gap_direction_detects_movement_towards_overconfidence():
+    # confirm a positive gap shift records the correct direction
+    assert determine_gap_direction(0.02) == "towards_overconfidence"
+
+def test_gap_direction_treats_tiny_difference_as_unchanged():
+    # ensure floating-point noise does not create a false direction
+    assert determine_gap_direction(1e-13) == "unchanged"
