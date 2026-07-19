@@ -13,6 +13,14 @@ AUGMENTATION_KEYS = (
     "noise",
     "brightness_contrast"
 )
+TRUST_METRICS = (
+    "absolute_accuracy_drop",
+    "relative_error_increase",
+    "ece_increase",
+    "gap_deterioration",
+    "fixed_hcer_increase",
+    "adaptive_hcer_increase"
+)
 
 def _require_non_empty_string(value: object, name: str) -> None:
     if not isinstance(value, str) or not value.strip():
@@ -31,6 +39,34 @@ def _require_number_in_range(value: object, name: str, minimum: float, maximum: 
         raise ValueError(f"{name} must be a number.")
     if not minimum <= value <= maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}.")
+    
+def _validate_trust_thresholds(thresholds: object, name: str) -> None:
+    if not isinstance(thresholds, dict):
+        raise ValueError(f"{name} must be a mapping.")
+
+    for metric in TRUST_METRICS:
+        value = thresholds.get(metric)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            raise ValueError(f"{name}.{metric} must be a non-negative number.")
+
+def _validate_trust_policy(policy: object) -> None:
+    if not isinstance(policy, dict):
+        raise ValueError("trust_policy must be a mapping.")
+
+    error_floor = policy.get("error_denominator_floor")
+    # the floor prevents near-zero baseline error from making the ratio explode
+    if isinstance(error_floor, bool) or not isinstance(error_floor, (int, float)) or not 0 < error_floor <= 1:
+        raise ValueError("trust_policy.error_denominator_floor must be greater than 0 and no greater than 1.")
+
+    caution = policy.get("caution")
+    do_not_trust = policy.get("do_not_trust")
+    _validate_trust_thresholds(caution, "trust_policy.caution")
+    _validate_trust_thresholds(do_not_trust, "trust_policy.do_not_trust")
+
+    # stronger warnings must not be easier to trigger than caution warnings
+    for metric in TRUST_METRICS:
+        if do_not_trust[metric] < caution[metric]:
+            raise ValueError(f"trust_policy.do_not_trust.{metric} must be at least the caution threshold.")
 
 def validate_config(config: dict) -> None:
     for key in ("dataset", "model", "data_dir", "checkpoint", "output_dir", "validation_profile"):
@@ -97,6 +133,8 @@ def validate_config(config: dict) -> None:
         raise ValueError("evaluation.severity_levels must contain integers from 1 to 5.")
     if len(severity_levels) != len(set(severity_levels)):
         raise ValueError("evaluation.severity_levels must not contain duplicates.")
+    
+    _validate_trust_policy(config.get("trust_policy"))
 
 def load_config(config_path: Path) -> dict:
     if not config_path.exists():

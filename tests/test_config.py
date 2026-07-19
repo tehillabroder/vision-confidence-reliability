@@ -38,6 +38,25 @@ def valid_config() -> dict:
             "ece_bins": 10,
             "fixed_hcer_threshold": 0.90,
             "adaptive_hcer_percentile": 90
+        },
+        "trust_policy": {
+            "error_denominator_floor": 0.01,
+            "caution": {
+                "absolute_accuracy_drop": 0.05,
+                "relative_error_increase": 1.0,
+                "ece_increase": 0.03,
+                "gap_deterioration": 0.05,
+                "fixed_hcer_increase": 0.02,
+                "adaptive_hcer_increase": 0.02
+            },
+            "do_not_trust": {
+                "absolute_accuracy_drop": 0.15,
+                "relative_error_increase": 3.0,
+                "ece_increase": 0.08,
+                "gap_deterioration": 0.12,
+                "fixed_hcer_increase": 0.07,
+                "adaptive_hcer_increase": 0.07
+            }
         }
     }
 
@@ -104,3 +123,21 @@ def test_save_config_copy_preserves_configuration(tmp_path):
 
     assert saved_path == destination
     assert destination.read_text(encoding="utf-8") == config_path.read_text(encoding="utf-8")
+
+def test_load_config_rejects_zero_error_floor(tmp_path):
+    # ensure relative error growth always has a stable denominator
+    config = valid_config()
+    config["trust_policy"]["error_denominator_floor"] = 0
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="error_denominator_floor"):
+        load_config(config_path)
+
+def test_load_config_rejects_weaker_do_not_trust_threshold(tmp_path):
+    # ensure the strongest warning cannot trigger before caution
+    config = valid_config()
+    config["trust_policy"]["do_not_trust"]["ece_increase"] = 0.02
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="must be at least"):
+        load_config(config_path)
