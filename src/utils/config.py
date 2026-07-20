@@ -30,6 +30,10 @@ def _require_positive_int(value: object, name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError(f"{name} must be a positive integer.")
 
+def _require_positive_number(value: object, name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ValueError(f"{name} must be a positive number.")
+
 def _require_optional_positive_int(value: object, name: str) -> None:
     if value is not None:
         _require_positive_int(value, name)
@@ -87,6 +91,10 @@ def validate_config(config: dict) -> None:
     _require_positive_int(training.get("batch_size"), "training.batch_size")
     _require_positive_int(training.get("validation_size"), "training.validation_size")
     _require_optional_positive_int(training.get("max_train_batches"), "training.max_train_batches")
+
+    learning_rate = training.get("learning_rate")
+    if learning_rate is not None:
+        _require_positive_number(learning_rate, "training.learning_rate")
 
     augmentation = training.get("augmentation")
     if not isinstance(augmentation, dict):

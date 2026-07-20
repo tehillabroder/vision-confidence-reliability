@@ -141,3 +141,12 @@ def test_load_config_rejects_weaker_do_not_trust_threshold(tmp_path):
 
     with pytest.raises(ValueError, match="must be at least"):
         load_config(config_path)
+
+def test_load_config_rejects_invalid_learning_rate(tmp_path):
+    # ensure a configured learning rate must be positive
+    config = valid_config()
+    config["training"]["learning_rate"] = 0
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="training.learning_rate"):
+        load_config(config_path)
