@@ -1,9 +1,12 @@
 """Tests for GTSRB dataset helpers."""
 
+from pathlib import Path
+
 import pytest
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+
 from src.datasets.gtsrb import (
     GTSRB_CLASS_COUNT,
     GTSRB_NORMALISE,
@@ -12,44 +15,60 @@ from src.datasets.gtsrb import (
 )
 
 class FakeGTSRB(Dataset):
-    """
-    Provide eight variable-sized traffic-sign images.
-    Include class 42 to check the highest valid GTSRB label.
-    """
+    """Provide small variable-sized traffic-sign tracks."""
+
     requests: list[tuple[str, bool]] = []
 
     def __init__(self, root: str, split: str, download: bool):
         self.root = root
         self.split = split
         self.requests.append((split, download))
-        self.labels = [0, 1, 42, 3, 4, 5, 6, 7]
+        self._samples = []
+        self.labels = []
+
+        for label in (0, 1, 42):
+            for track in range(2):
+                for frame in range(2):
+                    image_path = (
+                        Path(root)
+                        / f"{label:05d}"
+                        / f"{track:05d}_{frame:05d}.ppm"
+                    )
+                    self._samples.append((str(image_path), label))
+                    self.labels.append(label)
 
     def __len__(self) -> int:
         return len(self.labels)
 
     def __getitem__(self, index: int) -> tuple[Image.Image, int]:
-        # variable sizes represent the original GTSRB image format
-        image = Image.new("RGB", (20 + index, 24 + index), (index * 20, 50, 100))
+        image = Image.new(
+            "RGB",
+            (20 + index, 24 + index),
+            (index * 20, 50, 100)
+        )
         return image, self.labels[index]
 
 @pytest.fixture
 def fake_gtsrb(monkeypatch):
     # replace the real dataset so tests do not depend on downloads
     FakeGTSRB.requests = []
-    monkeypatch.setattr("src.datasets.gtsrb.datasets.GTSRB", FakeGTSRB)
+    monkeypatch.setattr(
+        "src.datasets.gtsrb.datasets.GTSRB",
+        FakeGTSRB
+    )
     return FakeGTSRB
 
 def test_gtsrb_train_validation_split_is_repeatable(tmp_path, fake_gtsrb):
-    # check that the same seed produces the same fixed validation split
+    # check that the same seed produces the same fixed track split
     first_train, first_validation = build_gtsrb_train_validation_datasets(
         str(tmp_path),
-        validation_size=2,
+        validation_size=6,
         seed=42,
         download=False
     )
     second_train, second_validation = build_gtsrb_train_validation_datasets(
         str(tmp_path),
-        validation_size=2,
+        validation_size=6,
         seed=42,
         download=False
     )
@@ -57,13 +76,20 @@ def test_gtsrb_train_validation_split_is_repeatable(tmp_path, fake_gtsrb):
     assert first_train.indices == second_train.indices
     assert first_validation.indices == second_validation.indices
     assert len(first_train) == 6
-    assert len(first_validation) == 2
-    assert fake_gtsrb.requests == [("train", False), ("train", False)]
+    assert len(first_validation) == 6
+    assert fake_gtsrb.requests == [
+        ("train", False),
+        ("train", False)
+    ]
 
-@pytest.mark.parametrize("validation_size", [-1, 0, 8])
-def test_gtsrb_split_rejects_invalid_validation_size(tmp_path, fake_gtsrb, validation_size):
+@pytest.mark.parametrize("validation_size", [-1, 0, 12])
+def test_gtsrb_split_rejects_invalid_validation_size(
+    tmp_path,
+    fake_gtsrb,
+    validation_size
+):
     # cover negative, empty and full-size validation splits
-    with pytest.raises(ValueError, match="Validation size must be greater than zero"):
+    with pytest.raises(ValueError, match="Validation size must be greater"):
         build_gtsrb_train_validation_datasets(
             str(tmp_path),
             validation_size=validation_size,
@@ -72,22 +98,27 @@ def test_gtsrb_split_rejects_invalid_validation_size(tmp_path, fake_gtsrb, valid
         )
 
 def test_gtsrb_test_dataset_returns_expected_sample(tmp_path, fake_gtsrb):
-    # confirm evaluation data returns a normalised RGB tensor, label and stable image id
-    dataset = build_gtsrb_test_dataset(str(tmp_path), download=False)
-    image, label, image_id = dataset[2]
+    # confirm evaluation data returns a normalised RGB tensor and identifiers
+    dataset = build_gtsrb_test_dataset(
+        str(tmp_path),
+        download=False
+    )
+    image, label, image_id = dataset[8]
 
     assert GTSRB_CLASS_COUNT == 43
-    # preprocessing should standardise variable source images to the model input shape
     assert image.shape == (3, 64, 64)
     assert image.dtype == torch.float32
-    # normalisation may change the range but must not produce invalid values
     assert torch.isfinite(image).all()
     assert label == 42
-    assert image_id == 2
+    assert image_id == 8
     assert fake_gtsrb.requests == [("test", False)]
 
-def test_gtsrb_degradation_occurs_before_normalisation(tmp_path, fake_gtsrb, monkeypatch):
-    # confirm degradation receives resized image values between zero and one
+def test_gtsrb_degradation_occurs_before_normalisation(
+    tmp_path,
+    fake_gtsrb,
+    monkeypatch
+):
+    # confirm degradation receives resized values between zero and one
     captured = {}
 
     def capture_degradation(image, degradation, severity):
@@ -96,7 +127,10 @@ def test_gtsrb_degradation_occurs_before_normalisation(tmp_path, fake_gtsrb, mon
         captured["severity"] = severity
         return torch.full_like(image, 0.25)
 
-    monkeypatch.setattr("src.datasets.gtsrb.apply_degradation", capture_degradation)
+    monkeypatch.setattr(
+        "src.datasets.gtsrb.apply_degradation",
+        capture_degradation
+    )
     dataset = build_gtsrb_test_dataset(
         str(tmp_path),
         degradation="low_light",
@@ -104,18 +138,22 @@ def test_gtsrb_degradation_occurs_before_normalisation(tmp_path, fake_gtsrb, mon
         download=False
     )
     image, _, _ = dataset[0]
-    expected = GTSRB_NORMALISE(torch.full((3, 64, 64), 0.25))
+    expected = GTSRB_NORMALISE(
+        torch.full((3, 64, 64), 0.25)
+    )
 
     assert captured["image"].shape == (3, 64, 64)
     assert captured["image"].min() >= 0
     assert captured["image"].max() <= 1
     assert captured["degradation"] == "low_light"
     assert captured["severity"] == 3
-    # the returned tensor should only be normalised after degradation
     assert torch.allclose(image, expected)
 
-def test_gtsrb_dataset_can_return_unnormalised_images(tmp_path, fake_gtsrb):
-    # check that unnormalised images remain suitable for visual inspection
+def test_gtsrb_dataset_can_return_unnormalised_images(
+    tmp_path,
+    fake_gtsrb
+):
+    # check that unnormalised images remain suitable for inspection
     dataset = build_gtsrb_test_dataset(
         str(tmp_path),
         degradation="noise",
@@ -123,18 +161,20 @@ def test_gtsrb_dataset_can_return_unnormalised_images(tmp_path, fake_gtsrb):
         download=False,
         normalise=False
     )
-    # fix the noise so this test remains repeatable
     torch.manual_seed(42)
-    image, label, image_id = dataset[1]
+    image, label, image_id = dataset[4]
 
     assert image.shape == (3, 64, 64)
     assert image.min() >= 0
     assert image.max() <= 1
     assert label == 1
-    assert image_id == 1
+    assert image_id == 4
 
-def test_gtsrb_low_light_strengthens_with_severity(tmp_path, fake_gtsrb):
-    # check that the severity scale produces progressively darker images
+def test_gtsrb_low_light_strengthens_with_severity(
+    tmp_path,
+    fake_gtsrb
+):
+    # check that higher severity produces a darker image
     mild_dataset = build_gtsrb_test_dataset(
         str(tmp_path),
         degradation="low_light",
@@ -149,7 +189,7 @@ def test_gtsrb_low_light_strengthens_with_severity(tmp_path, fake_gtsrb):
         download=False,
         normalise=False
     )
-    # first _ ignores label, second _ ignores image identifier
+
     mild_image, _, _ = mild_dataset[4]
     severe_image, _, _ = severe_dataset[4]
 

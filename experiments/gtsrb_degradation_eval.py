@@ -18,6 +18,7 @@ from src.metrics.reliability import calibration_bins, expected_calibration_error
 from src.models.checkpoints import load_model_checkpoint
 from src.models.gtsrb_cnn import GTSRBCNN
 from src.utils.config import load_config, save_config_copy
+from src.datasets.gtsrb_split import validate_gtsrb_split_metadata
 from src.utils.seeds import set_seed
 
 def select_device() -> torch.device:
@@ -42,6 +43,7 @@ def load_validation_profile(profile_path: Path, config: dict) -> dict:
     """Load and validate the undegraded validation profile."""
     if not profile_path.exists():
         raise FileNotFoundError(f"Validation profile not found: {profile_path}")
+
     try:
         profile = json.loads(profile_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
@@ -58,14 +60,34 @@ def load_validation_profile(profile_path: Path, config: dict) -> dict:
         "fixed_hcer_threshold": config["evaluation"]["fixed_hcer_threshold"],
         "adaptive_hcer_percentile": config["evaluation"]["adaptive_hcer_percentile"]
     }
+
     for name, expected_value in expected_values.items():
         if profile.get(name) != expected_value:
-            raise ValueError(
-                f"Validation profile {name} does not match the GTSRB configuration."
-            )
+            raise ValueError(f"Validation profile {name} does not match the GTSRB configuration.")
 
     if profile.get("degradation") != "none" or profile.get("severity") != 0:
         raise ValueError("Validation profile must describe the undegraded condition.")
+
+    training_config = config["training"]
+    split_metadata = validate_gtsrb_split_metadata(
+        metadata=profile.get("split_metadata"),
+        validation_split=training_config["validation_split"],
+        requested_validation_size=training_config["validation_size"],
+        class_count=GTSRB_CLASS_COUNT
+    )
+
+    split_values = {
+        "validation_split": split_metadata["validation_split"],
+        "requested_validation_size": split_metadata["requested_validation_size"],
+        "validation_track_count": split_metadata["validation_track_count"],
+        "track_overlap": split_metadata["track_overlap"],
+        "validation_track_hash": split_metadata["validation_track_hash"],
+        "validation_sample_count": split_metadata["validation_size"]
+    }
+
+    for name, expected_value in split_values.items():
+        if profile.get(name) != expected_value:
+            raise ValueError(f"Validation profile {name} does not match its split metadata.")
 
     adaptive_threshold = profile.get("adaptive_hcer_threshold")
     if (
@@ -76,6 +98,53 @@ def load_validation_profile(profile_path: Path, config: dict) -> dict:
         raise ValueError("Validation profile adaptive_hcer_threshold must be between 0 and 1.")
 
     return profile
+
+def validate_evaluation_sources(
+    metadata: dict,
+    profile: dict,
+    config: dict
+) -> dict[str, object]:
+    """Check that checkpoint and profile share one track split."""
+    training_config = config["training"]
+    checkpoint_split = validate_gtsrb_split_metadata(
+        metadata=metadata.get("split_metadata"),
+        validation_split=training_config["validation_split"],
+        requested_validation_size=training_config["validation_size"],
+        class_count=GTSRB_CLASS_COUNT
+    )
+    profile_split = validate_gtsrb_split_metadata(
+        metadata=profile.get("split_metadata"),
+        validation_split=training_config["validation_split"],
+        requested_validation_size=training_config["validation_size"],
+        class_count=GTSRB_CLASS_COUNT
+    )
+
+    expected_metadata = {
+        "dataset": config["dataset"],
+        "model": config["model"],
+        "seed": config["seed"],
+        "class_count": GTSRB_CLASS_COUNT,
+        "validation_split": checkpoint_split["validation_split"],
+        "requested_validation_size": checkpoint_split["requested_validation_size"],
+        "validation_size": checkpoint_split["validation_size"],
+        "track_overlap": 0,
+        "validation_track_hash": checkpoint_split["validation_track_hash"]
+    }
+
+    for name, expected_value in expected_metadata.items():
+        if metadata.get(name) != expected_value:
+            raise ValueError(
+                f"Checkpoint metadata {name} does not match "
+                "the GTSRB evaluation configuration."
+            )
+
+    if checkpoint_split != profile_split:
+        raise ValueError(
+            "Checkpoint and validation profile use "
+            "different GTSRB track splits."
+        )
+
+    return checkpoint_split
 
 @torch.no_grad()
 def evaluate_condition(
@@ -134,7 +203,8 @@ def summarise_condition(
     ece_bins: int,
     fixed_hcer_threshold: float,
     adaptive_hcer_threshold: float,
-    adaptive_hcer_percentile: float
+    adaptive_hcer_percentile: float,
+    split_metadata: dict[str, object]
 ) -> dict:
     """Summarise one GTSRB evaluation condition."""
     if not rows:
@@ -163,10 +233,14 @@ def summarise_condition(
         "seed": first_row["seed"],
         "degradation": first_row["degradation"],
         "severity": first_row["severity"],
+        "validation_split": split_metadata["validation_split"],
+        "requested_validation_size": split_metadata["requested_validation_size"],
+        "validation_size": split_metadata["validation_size"],
+        "validation_track_count": split_metadata["validation_track_count"],
+        "track_overlap": split_metadata["track_overlap"],
+        "validation_track_hash": split_metadata["validation_track_hash"],
         "accuracy": accuracy_from_correct(correct),
-        "balanced_accuracy": float(
-            balanced_accuracy_score(true_labels, predicted_labels)
-        ),
+        "balanced_accuracy": float(balanced_accuracy_score(true_labels, predicted_labels)),
         "mean_confidence": mean_confidence(confidences),
         "confidence_accuracy_gap": confidence_accuracy_gap(correct, confidences),
         "ece": expected_calibration_error(correct, confidences, n_bins=ece_bins),
@@ -201,6 +275,7 @@ def save_evaluation_outputs(
     prediction_rows: list[dict],
     metric_rows: list[dict],
     calibration_rows: list[dict],
+    split_metadata: dict[str, object],
     config_path: Path,
     output_dir: Path
 ) -> dict[str, Path]:
@@ -213,12 +288,17 @@ def save_evaluation_outputs(
         "predictions": output_dir / "predictions.csv",
         "metrics": output_dir / "metrics_summary.csv",
         "calibration": output_dir / "calibration_bins.csv",
+        "split_metadata": output_dir / "split_metadata.json",
         "config": output_dir / "config.yaml"
     }
 
     pd.DataFrame(prediction_rows).to_csv(paths["predictions"], index=False)
     pd.DataFrame(metric_rows).to_csv(paths["metrics"], index=False)
     pd.DataFrame(calibration_rows).to_csv(paths["calibration"], index=False)
+    paths["split_metadata"].write_text(
+        json.dumps(split_metadata, indent=2),
+        encoding="utf-8"
+    )
     save_config_copy(config_path, paths["config"])
     return paths
 
@@ -253,6 +333,7 @@ def main() -> None:
         Path(config["checkpoint"]),
         device
     )
+    split_metadata = validate_evaluation_sources(metadata, profile, config)
 
     print(f"Using device: {device}")
     if "validation_accuracy" in metadata:
@@ -293,7 +374,8 @@ def main() -> None:
                 ece_bins=evaluation_config["ece_bins"],
                 fixed_hcer_threshold=evaluation_config["fixed_hcer_threshold"],
                 adaptive_hcer_threshold=profile["adaptive_hcer_threshold"],
-                adaptive_hcer_percentile=profile["adaptive_hcer_percentile"]
+                adaptive_hcer_percentile=profile["adaptive_hcer_percentile"],
+                split_metadata=split_metadata
             )
         )
         calibration_rows.extend(
@@ -307,6 +389,7 @@ def main() -> None:
         prediction_rows=prediction_rows,
         metric_rows=metric_rows,
         calibration_rows=calibration_rows,
+        split_metadata=split_metadata,
         config_path=config_path,
         output_dir=Path(config["output_dir"])
     )
@@ -314,6 +397,7 @@ def main() -> None:
     print(f"Saved predictions to {paths['predictions']}")
     print(f"Saved metrics to {paths['metrics']}")
     print(f"Saved calibration bins to {paths['calibration']}")
+    print(f"Saved split metadata to {paths['split_metadata']}")
     print(f"Saved config to {paths['config']}")
 
 if __name__ == "__main__":

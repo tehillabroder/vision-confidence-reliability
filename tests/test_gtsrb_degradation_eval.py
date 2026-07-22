@@ -11,7 +11,8 @@ from experiments.gtsrb_degradation_eval import (
     evaluate_condition,
     load_validation_profile,
     save_evaluation_outputs,
-    summarise_condition
+    summarise_condition,
+    validate_evaluation_sources
 )
 
 class StaticModel(nn.Module):
@@ -32,10 +33,25 @@ def valid_config() -> dict:
         "model": "GTSRBCNN",
         "checkpoint": "checkpoints/gtsrb_cnn.pt",
         "seed": 42,
-        "evaluation": {
-            "fixed_hcer_threshold": 0.90,
-            "adaptive_hcer_percentile": 90
-        }
+        "evaluation": {"fixed_hcer_threshold": 0.90, "adaptive_hcer_percentile": 90},
+        "training": {"validation_size": 4000, "validation_split": "stratified_track"}
+    }
+
+def valid_split_metadata() -> dict:
+    return {
+        "validation_split": "stratified_track",
+        "requested_validation_size": 4000,
+        "validation_size": 3990,
+        "validation_size_difference": -10,
+        "train_size": 22650,
+        "track_size": 30,
+        "total_track_count": 888,
+        "train_track_count": 755,
+        "validation_track_count": 133,
+        "track_overlap": 0,
+        "training_class_count": 43,
+        "validation_class_count": 43,
+        "validation_track_hash": "a" * 64
     }
 
 def valid_profile() -> dict:
@@ -46,7 +62,13 @@ def valid_profile() -> dict:
         "seed": 42,
         "degradation": "none",
         "severity": 0,
-        "validation_sample_count": 4000,
+        "validation_sample_count": 3990,
+        "validation_split": "stratified_track",
+        "requested_validation_size": 4000,
+        "validation_track_count": 133,
+        "track_overlap": 0,
+        "validation_track_hash": "a" * 64,
+        "split_metadata": valid_split_metadata(),
         "fixed_hcer_threshold": 0.90,
         "adaptive_hcer_percentile": 90,
         "adaptive_hcer_threshold": 0.80
@@ -218,8 +240,10 @@ def test_summarise_condition_includes_balanced_accuracy_and_hcer():
         ece_bins=10,
         fixed_hcer_threshold=0.90,
         adaptive_hcer_threshold=0.80,
-        adaptive_hcer_percentile=90
+        adaptive_hcer_percentile=90,
+        split_metadata=valid_split_metadata()
     )
+
 
     assert summary["accuracy"] == pytest.approx(0.5)
     assert summary["balanced_accuracy"] == pytest.approx(0.5)
@@ -291,12 +315,44 @@ def test_save_evaluation_outputs_creates_expected_files(tmp_path):
             "bin": 9,
             "count": 1
         }],
+        split_metadata=valid_split_metadata(),
         config_path=config_path,
         output_dir=output_dir
     )
+    saved_split = json.loads(paths["split_metadata"].read_text(encoding="utf-8"))
+    assert saved_split == valid_split_metadata()
 
     assert all(path.exists() for path in paths.values())
     assert paths["config"].read_text(encoding="utf-8") == "dataset: GTSRB\n"
     assert len(pd.read_csv(paths["predictions"])) == 1
     assert len(pd.read_csv(paths["metrics"])) == 1
     assert len(pd.read_csv(paths["calibration"])) == 1
+
+def test_validate_evaluation_sources_rejects_split_mismatch():
+    # ensure evaluation cannot combine unrelated split evidence
+    profile = valid_profile()
+    metadata = {
+        "dataset": "GTSRB",
+        "model": "GTSRBCNN",
+        "seed": 42,
+        "class_count": 43,
+        "validation_split": "stratified_track",
+        "requested_validation_size": 4000,
+        "validation_size": 3990,
+        "track_overlap": 0,
+        "validation_track_hash": "c" * 64,
+        "split_metadata": {
+            **valid_split_metadata(),
+            "validation_track_hash": "c" * 64
+        }
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="different GTSRB track splits"
+    ):
+        validate_evaluation_sources(
+            metadata,
+            profile,
+            valid_config()
+        )

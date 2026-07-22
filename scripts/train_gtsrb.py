@@ -9,7 +9,8 @@ import torch.nn as nn
 
 from sklearn.metrics import balanced_accuracy_score
 from torch.utils.data import DataLoader
-from src.datasets.gtsrb import GTSRB_CLASS_COUNT, GTSRB_IMAGE_SIZE, build_gtsrb_train_validation_datasets
+from src.datasets.gtsrb import GTSRB_CLASS_COUNT, GTSRB_IMAGE_SIZE, build_gtsrb_train_validation_split
+from src.datasets.gtsrb_split import validate_gtsrb_split_metadata
 from src.models.checkpoints import save_model_checkpoint
 from src.models.gtsrb_cnn import GTSRBCNN
 from src.utils.config import load_config, save_config_copy
@@ -73,6 +74,50 @@ def calculate_validation_metrics(model: nn.Module, loader: DataLoader, device: t
     balanced_accuracy = balanced_accuracy_score(labels_all, predictions_all)
     return accuracy, float(balanced_accuracy)
 
+def build_checkpoint_metadata(
+    config: dict,
+    split_metadata: dict[str, object],
+    validation_accuracy: float,
+    validation_balanced_accuracy: float,
+    device: torch.device,
+    config_copy_path: Path
+) -> dict:
+    """Build reproducible GTSRB checkpoint evidence."""
+    training_config = config["training"]
+    split_metadata = validate_gtsrb_split_metadata(
+        metadata=split_metadata,
+        validation_split=training_config["validation_split"],
+        requested_validation_size=training_config["validation_size"],
+        class_count=GTSRB_CLASS_COUNT
+    )
+
+    return {
+        "dataset": config["dataset"],
+        "model": config["model"],
+        "seed": config["seed"],
+        "epochs": training_config["epochs"],
+        "batch_size": training_config["batch_size"],
+        "learning_rate": training_config["learning_rate"],
+        "validation_split": split_metadata["validation_split"],
+        "requested_validation_size": split_metadata[
+            "requested_validation_size"
+        ],
+        "train_size": split_metadata["train_size"],
+        "validation_size": split_metadata["validation_size"],
+        "validation_accuracy": validation_accuracy,
+        "validation_balanced_accuracy": validation_balanced_accuracy,
+        "class_count": GTSRB_CLASS_COUNT,
+        "image_size": GTSRB_IMAGE_SIZE,
+        "track_overlap": split_metadata["track_overlap"],
+        "validation_track_hash": split_metadata[
+            "validation_track_hash"
+        ],
+        "split_metadata": split_metadata,
+        "training_augmentation": training_config["augmentation"],
+        "device": str(device),
+        "config": str(config_copy_path)
+    }
+
 def select_device() -> torch.device:
     if torch.cuda.is_available():
         return torch.device("cuda")
@@ -93,10 +138,13 @@ def main() -> None:
     training_config = config["training"]
     set_seed(config["seed"])
 
-    train_set, validation_set = build_gtsrb_train_validation_datasets(
-        data_dir=config["data_dir"],
-        validation_size=training_config["validation_size"],
-        seed=config["seed"]
+    train_set, validation_set, split_metadata = (
+        build_gtsrb_train_validation_split(
+            data_dir=config["data_dir"],
+            validation_size=training_config["validation_size"],
+            seed=config["seed"],
+            validation_split=training_config["validation_split"]
+        )
     )
 
     train_generator = torch.Generator().manual_seed(config["seed"])
@@ -115,7 +163,16 @@ def main() -> None:
     device = select_device()
     print(f"Using device: {device}")
     print(f"Training examples: {len(train_set)}")
+    print(
+        "Requested validation examples: "
+        f"{split_metadata['requested_validation_size']}"
+    )
     print(f"Validation examples: {len(validation_set)}")
+    print(
+        "Validation tracks: "
+        f"{split_metadata['validation_track_count']}"
+    )
+    print(f"Track overlap: {split_metadata['track_overlap']}")
 
     model = GTSRBCNN(num_classes=GTSRB_CLASS_COUNT).to(device)
     train_model(
@@ -135,29 +192,21 @@ def main() -> None:
     checkpoint_path = Path(config["checkpoint"])
     config_copy_path = checkpoint_path.with_name(f"{checkpoint_path.stem}_config.yaml")
 
-    metadata = {
-        "dataset": config["dataset"],
-        "model": config["model"],
-        "seed": config["seed"],
-        "epochs": training_config["epochs"],
-        "batch_size": training_config["batch_size"],
-        "learning_rate": training_config["learning_rate"],
-        "train_size": len(train_set),
-        "validation_size": len(validation_set),
-        "validation_accuracy": validation_accuracy,
-        "validation_balanced_accuracy": validation_balanced_accuracy,
-        "class_count": GTSRB_CLASS_COUNT,
-        "image_size": GTSRB_IMAGE_SIZE,
-        "training_augmentation": training_config["augmentation"],
-        "device": str(device),
-        "config": str(config_copy_path)
-    }
+    metadata = build_checkpoint_metadata(
+        config=config,
+        split_metadata=split_metadata,
+        validation_accuracy=validation_accuracy,
+        validation_balanced_accuracy=validation_balanced_accuracy,
+        device=device,
+        config_copy_path=config_copy_path
+    )
 
     save_model_checkpoint(model, checkpoint_path, metadata)
     save_config_copy(config_path, config_copy_path)
 
     print(f"Validation accuracy: {validation_accuracy:.4f}")
     print(f"Validation balanced accuracy: {validation_balanced_accuracy:.4f}")
+    print(f"Validation track hash: {split_metadata['validation_track_hash']}")
     print(f"Saved checkpoint to {checkpoint_path}")
     print(f"Saved config to {config_copy_path}")
 

@@ -1,10 +1,12 @@
 """Tests for GTSRB training helpers."""
 
+from pathlib import Path
 import pytest
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from scripts.train_gtsrb import calculate_validation_metrics, train_model
+from scripts.train_gtsrb import build_checkpoint_metadata, calculate_validation_metrics, train_model
+
 class StaticModel(nn.Module):
     """Return fixed predictions for validation metric tests."""
 
@@ -64,3 +66,51 @@ def test_calculate_validation_metrics_rejects_empty_loader():
 
     with pytest.raises(ValueError, match="Validation loader produced no examples"):
         calculate_validation_metrics(model, loader, torch.device("cpu"))
+
+def test_build_checkpoint_metadata_records_track_split():
+    # confirm checkpoint evidence records actual validation tracks
+    config = {
+        "dataset": "GTSRB",
+        "model": "GTSRBCNN",
+        "seed": 42,
+        "training": {
+            "epochs": 10,
+            "batch_size": 64,
+            "learning_rate": 0.001,
+            "validation_size": 4000,
+            "validation_split": "stratified_track",
+            "augmentation": {
+                "resize": True
+            }
+        }
+    }
+    split_metadata = {
+        "validation_split": "stratified_track",
+        "requested_validation_size": 4000,
+        "validation_size": 3990,
+        "validation_size_difference": -10,
+        "train_size": 22650,
+        "track_size": 30,
+        "total_track_count": 888,
+        "train_track_count": 755,
+        "validation_track_count": 133,
+        "track_overlap": 0,
+        "training_class_count": 43,
+        "validation_class_count": 43,
+        "validation_track_hash": "a" * 64
+    }
+
+    metadata = build_checkpoint_metadata(
+        config=config,
+        split_metadata=split_metadata,
+        validation_accuracy=0.90,
+        validation_balanced_accuracy=0.88,
+        device=torch.device("cpu"),
+        config_copy_path=Path("checkpoints/config.yaml")
+    )
+
+    assert metadata["requested_validation_size"] == 4000
+    assert metadata["validation_size"] == 3990
+    assert metadata["track_overlap"] == 0
+    assert metadata["validation_track_hash"] == "a" * 64
+    assert metadata["split_metadata"] == split_metadata

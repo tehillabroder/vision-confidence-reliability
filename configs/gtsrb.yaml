@@ -12,6 +12,8 @@ training:
   batch_size: 64
   # this provides broad validation coverage across the 43 classes
   validation_size: 4000
+  # keep all frames from one physical-sign track in the same subset
+  validation_split: stratified_track
   max_train_batches: null
   learning_rate: 0.001
   augmentation:

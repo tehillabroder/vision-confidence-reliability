@@ -5,6 +5,7 @@ import shutil
 
 import yaml
 SUPPORTED_DEGRADATIONS = {"blur", "noise", "low_light"}
+SUPPORTED_GTSRB_VALIDATION_SPLITS = {"stratified_track"}
 AUGMENTATION_KEYS = (
     "resize",
     "random_crop",
@@ -90,7 +91,17 @@ def validate_config(config: dict) -> None:
     _require_positive_int(training.get("epochs"), "training.epochs")
     _require_positive_int(training.get("batch_size"), "training.batch_size")
     _require_positive_int(training.get("validation_size"), "training.validation_size")
-    _require_optional_positive_int(training.get("max_train_batches"), "training.max_train_batches")
+    _require_optional_positive_int(
+        training.get("max_train_batches"),
+        "training.max_train_batches"
+    )
+
+    if config["dataset"] == "GTSRB":
+        validation_split = training.get("validation_split")
+        if validation_split not in SUPPORTED_GTSRB_VALIDATION_SPLITS:
+            raise ValueError(
+                "training.validation_split must be stratified_track for GTSRB."
+            )
 
     learning_rate = training.get("learning_rate")
     if learning_rate is not None:

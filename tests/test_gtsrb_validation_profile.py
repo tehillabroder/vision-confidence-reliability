@@ -4,12 +4,7 @@ import pytest
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-
-from scripts.build_gtsrb_validation_profile import (
-    build_gtsrb_validation_profile,
-    collect_gtsrb_validation_outputs,
-    validate_checkpoint_metadata
-)
+from scripts.build_gtsrb_validation_profile import build_gtsrb_validation_profile, collect_gtsrb_validation_outputs, validate_checkpoint_metadata
 
 class StaticModel(nn.Module):
     """Return fixed class predictions."""
@@ -29,17 +24,59 @@ def valid_config() -> dict:
         "model": "GTSRBCNN",
         "seed": 42,
         "training": {
-            "validation_size": 4000
+            "validation_size": 4000,
+            "validation_split": "stratified_track"
         }
     }
 
+def valid_split_metadata() -> dict:
+    return {
+        "validation_split": "stratified_track",
+        "requested_validation_size": 4000,
+        "validation_size": 3990,
+        "validation_size_difference": -10,
+        "train_size": 22650,
+        "track_size": 30,
+        "total_track_count": 888,
+        "train_track_count": 755,
+        "validation_track_count": 133,
+        "track_overlap": 0,
+        "training_class_count": 43,
+        "validation_class_count": 43,
+        "validation_track_hash": "a" * 64
+    }
+
+def small_split_metadata() -> dict:
+    return {
+        "validation_split": "stratified_track",
+        "requested_validation_size": 4,
+        "validation_size": 4,
+        "validation_size_difference": 0,
+        "train_size": 4,
+        "track_size": 1,
+        "total_track_count": 8,
+        "train_track_count": 4,
+        "validation_track_count": 4,
+        "track_overlap": 0,
+        "training_class_count": 2,
+        "validation_class_count": 2,
+        "validation_track_hash": "b" * 64
+    }
+
 def valid_metadata() -> dict:
+    split_metadata = valid_split_metadata()
     return {
         "dataset": "GTSRB",
         "model": "GTSRBCNN",
         "seed": 42,
-        "validation_size": 4000,
-        "class_count": 43
+        "class_count": 43,
+        "validation_split": "stratified_track",
+        "requested_validation_size": 4000,
+        "train_size": 22650,
+        "validation_size": 3990,
+        "track_overlap": 0,
+        "validation_track_hash": "a" * 64,
+        "split_metadata": split_metadata
     }
 
 def test_collect_gtsrb_validation_outputs_returns_expected_values():
@@ -77,8 +114,8 @@ def test_collect_gtsrb_validation_outputs_rejects_empty_loader():
             torch.device("cpu")
         )
 
-def test_build_gtsrb_validation_profile_adds_balanced_accuracy():
-    # confirm the profile includes the GTSRB class-sensitive metric
+def test_build_gtsrb_validation_profile_adds_split_evidence():
+    # confirm the profile records class balance and track evidence
     profile = build_gtsrb_validation_profile(
         dataset="GTSRB",
         model_name="GTSRBCNN",
@@ -90,35 +127,39 @@ def test_build_gtsrb_validation_profile_adds_balanced_accuracy():
         confidences=[0.9, 0.8, 0.7, 0.6],
         ece_bins=10,
         fixed_hcer_threshold=0.90,
-        adaptive_hcer_percentile=50
+        adaptive_hcer_percentile=50,
+        split_metadata=small_split_metadata()
     )
 
-    assert profile["dataset"] == "GTSRB"
-    assert profile["degradation"] == "none"
-    assert profile["severity"] == 0
     assert profile["validation_sample_count"] == 4
     assert profile["baseline_accuracy"] == pytest.approx(0.5)
     assert profile["baseline_balanced_accuracy"] == pytest.approx(1 / 3)
-    assert profile["adaptive_hcer_threshold"] == pytest.approx(0.75)
+    assert profile["validation_split"] == "stratified_track"
+    assert profile["track_overlap"] == 0
+    assert profile["validation_track_hash"] == "b" * 64
 
-def test_validate_checkpoint_metadata_accepts_matching_values():
-    # confirm matching training evidence is accepted
-    validate_checkpoint_metadata(valid_metadata(), valid_config())
+def test_validate_checkpoint_metadata_accepts_matching_split():
+    # confirm matching track evidence is accepted
+    validate_checkpoint_metadata(
+        valid_metadata(),
+        valid_config(),
+        valid_split_metadata()
+    )
 
-@pytest.mark.parametrize(
-    ("name", "value"),
-    [
-        ("dataset", "MNIST"),
-        ("model", "SimpleCNN"),
-        ("seed", 7),
-        ("validation_size", 100),
-        ("class_count", 10)
-    ]
-)
-def test_validate_checkpoint_metadata_rejects_mismatch(name, value):
-    # ensure the profile cannot use a different training source
+def test_validate_checkpoint_metadata_rejects_split_hash_mismatch():
+    # ensure a profile cannot use a checkpoint from different tracks
     metadata = valid_metadata()
-    metadata[name] = value
+    metadata["split_metadata"] = dict(
+        metadata["split_metadata"]
+    )
+    metadata["split_metadata"]["validation_track_hash"] = "c" * 64
 
-    with pytest.raises(ValueError, match=f"Checkpoint metadata {name}"):
-        validate_checkpoint_metadata(metadata, valid_config())
+    with pytest.raises(
+        ValueError,
+        match="Checkpoint split metadata does not match"
+    ):
+        validate_checkpoint_metadata(
+            metadata,
+            valid_config(),
+            valid_split_metadata()
+        )

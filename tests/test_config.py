@@ -150,3 +150,28 @@ def test_load_config_rejects_invalid_learning_rate(tmp_path):
 
     with pytest.raises(ValueError, match="training.learning_rate"):
         load_config(config_path)
+
+def test_load_config_accepts_gtsrb_track_split(tmp_path):
+    # confirm the supported GTSRB track strategy loads successfully
+    config = valid_config()
+    config["dataset"] = "GTSRB"
+    config["model"] = "GTSRBCNN"
+    config["training"]["learning_rate"] = 0.001
+    config["training"]["validation_split"] = "stratified_track"
+    config_path = write_config(tmp_path, config)
+
+    loaded = load_config(config_path)
+
+    assert loaded["training"]["validation_split"] == "stratified_track"
+
+def test_load_config_rejects_gtsrb_random_split(tmp_path):
+    # ensure GTSRB cannot return to image-level random splitting
+    config = valid_config()
+    config["dataset"] = "GTSRB"
+    config["model"] = "GTSRBCNN"
+    config["training"]["learning_rate"] = 0.001
+    config["training"]["validation_split"] = "random"
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="stratified_track"):
+        load_config(config_path)
