@@ -42,6 +42,48 @@ def high_confidence_error_rate(correct, confidences, threshold: float = 0.90):
     # denominator is total predictions (not just high conf ones) to measure global risk severity
     return float(high_confidence_wrong.mean())
 
+def high_confidence_coverage(confidences, threshold: float = 0.90):
+    confidence_array = np.asarray(confidences, dtype=float)
+    if confidence_array.size == 0:
+        raise ValueError("Cannot calculate high-confidence coverage from empty inputs.")
+    if np.any(confidence_array < 0) or np.any(confidence_array > 1):
+        raise ValueError("Confidence values must be between 0 and 1.")
+    if not 0.0 <= threshold <= 1.0:
+        raise ValueError("Confidence threshold must be between 0 and 1.")
+    return float((confidence_array >= threshold).mean())
+
+def _rank_based_selection_mask(confidences, top_fraction: float) -> np.ndarray:
+    confidence_array = np.asarray(confidences, dtype=float)
+    if confidence_array.size == 0:
+        raise ValueError("Cannot rank empty confidence inputs.")
+    if np.any(confidence_array < 0) or np.any(confidence_array > 1):
+        raise ValueError("Confidence values must be between 0 and 1.")
+    if not 0.0 < top_fraction <= 1.0:
+        raise ValueError("Top confidence fraction must be greater than 0 and at most 1.")
+
+    selected_count = max(1, int(np.ceil(confidence_array.size * top_fraction)))
+    # stable sorting makes equal-confidence selection reproducible
+    ranked_indices = np.argsort(-confidence_array, kind="stable")
+    selected = np.zeros(confidence_array.size, dtype=bool)
+    selected[ranked_indices[:selected_count]] = True
+    return selected
+
+def rank_based_high_confidence_error_rate(correct, confidences, top_fraction: float = 0.10):
+    correct_array = np.asarray(correct, dtype=int)
+    if correct_array.size == 0:
+        raise ValueError("Cannot calculate rank-based HCER from empty inputs.")
+    if correct_array.size != len(confidences):
+        raise ValueError("Correct and confidence arrays must have the same length.")
+
+    selected = _rank_based_selection_mask(confidences, top_fraction)
+    high_confidence_wrong = (correct_array == 0) & selected
+    # keep all predictions as the denominator so this remains comparable with HCER
+    return float(high_confidence_wrong.mean())
+
+def rank_based_high_confidence_coverage(confidences, top_fraction: float = 0.10):
+    selected = _rank_based_selection_mask(confidences, top_fraction)
+    return float(selected.mean())
+
 def calibration_bins(correct, confidences, n_bins: int = 10):
     # groups predictions into bins to allow for plotting calibration curves
     correct_array = np.asarray(correct, dtype=float)
