@@ -128,6 +128,7 @@ def test_build_gtsrb_validation_profile_adds_split_evidence():
         ece_bins=10,
         fixed_hcer_threshold=0.90,
         adaptive_hcer_percentile=50,
+        rank_hcer_top_fraction=0.50,
         split_metadata=small_split_metadata()
     )
 
@@ -137,6 +138,11 @@ def test_build_gtsrb_validation_profile_adds_split_evidence():
     assert profile["validation_split"] == "stratified_track"
     assert profile["track_overlap"] == 0
     assert profile["validation_track_hash"] == "b" * 64
+    assert profile["baseline_adaptive_hcer"] == pytest.approx(0.0)
+    assert profile["baseline_adaptive_hcer_coverage"] == pytest.approx(0.5)
+    assert profile["baseline_rank_hcer"] == pytest.approx(0.0)
+    assert profile["baseline_rank_hcer_coverage"] == pytest.approx(0.5)
+    assert profile["rank_hcer_top_fraction"] == pytest.approx(0.5)
 
 def test_validate_checkpoint_metadata_accepts_matching_split():
     # confirm matching track evidence is accepted

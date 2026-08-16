@@ -35,6 +35,8 @@ evaluation:
   ece_bins: 10
   fixed_hcer_threshold: 0.90
   adaptive_hcer_percentile: 90
+  # compare the adaptive threshold with a fixed-size highest-confidence group
+  rank_hcer_top_fraction: 0.10
 
 trust_policy:
   error_denominator_floor: 0.01

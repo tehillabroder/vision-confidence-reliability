@@ -12,6 +12,7 @@ from scripts.train_gtsrb import select_device
 from src.datasets.gtsrb import GTSRB_CLASS_COUNT, build_gtsrb_train_validation_split
 from src.datasets.gtsrb_split import validate_gtsrb_split_metadata
 from src.evaluation.validation_profile import build_validation_profile, save_validation_profile
+from src.metrics.reliability import high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
 from src.models.gtsrb_cnn import GTSRBCNN
 from src.utils.config import load_config
@@ -59,6 +60,7 @@ def build_gtsrb_validation_profile(
     ece_bins: int,
     fixed_hcer_threshold: float,
     adaptive_hcer_percentile: float,
+    rank_hcer_top_fraction: float,
     split_metadata: dict[str, object]
 ) -> dict:
     """Build a GTSRB profile with track-split evidence."""
@@ -78,7 +80,13 @@ def build_gtsrb_validation_profile(
         fixed_hcer_threshold=fixed_hcer_threshold,
         adaptive_hcer_percentile=adaptive_hcer_percentile
     )
+    adaptive_threshold = profile["adaptive_hcer_threshold"]
     profile.update({
+        "baseline_adaptive_hcer": high_confidence_error_rate(correct, confidences, threshold=adaptive_threshold),
+        "baseline_adaptive_hcer_coverage": high_confidence_coverage(confidences, threshold=adaptive_threshold),
+        "rank_hcer_top_fraction": rank_hcer_top_fraction,
+        "baseline_rank_hcer": rank_based_high_confidence_error_rate(correct, confidences, top_fraction=rank_hcer_top_fraction),
+        "baseline_rank_hcer_coverage": rank_based_high_confidence_coverage(confidences, top_fraction=rank_hcer_top_fraction),
         "baseline_balanced_accuracy": float(
             balanced_accuracy_score(
                 true_labels,
@@ -198,6 +206,7 @@ def main() -> None:
         ece_bins=evaluation_config["ece_bins"],
         fixed_hcer_threshold=evaluation_config["fixed_hcer_threshold"],
         adaptive_hcer_percentile=evaluation_config["adaptive_hcer_percentile"],
+        rank_hcer_top_fraction=evaluation_config["rank_hcer_top_fraction"],
         split_metadata=split_metadata
     )
     output_path = save_validation_profile(profile, Path(config["validation_profile"]))
@@ -215,6 +224,10 @@ def main() -> None:
         "Adaptive HCER threshold: "
         f"{profile['adaptive_hcer_threshold']:.4f}"
     )
+    print(f"Adaptive HCER: {profile['baseline_adaptive_hcer']:.4f}")
+    print(f"Adaptive HCER coverage: {profile['baseline_adaptive_hcer_coverage']:.4f}")
+    print(f"Rank-based HCER: {profile['baseline_rank_hcer']:.4f}")
+    print(f"Rank-based HCER coverage: {profile['baseline_rank_hcer_coverage']:.4f}")
     print(f"Track overlap: {profile['track_overlap']}")
     print(
         "Validation track hash: "

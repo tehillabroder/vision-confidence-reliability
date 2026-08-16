@@ -14,7 +14,7 @@ from sklearn.metrics import balanced_accuracy_score
 from torch.utils.data import DataLoader
 from src.datasets.gtsrb import GTSRB_CLASS_COUNT, build_gtsrb_test_dataset
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
-from src.metrics.reliability import calibration_bins, expected_calibration_error, high_confidence_error_rate
+from src.metrics.reliability import calibration_bins, expected_calibration_error, high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
 from src.models.gtsrb_cnn import GTSRBCNN
 from src.utils.config import load_config, save_config_copy
@@ -58,7 +58,8 @@ def load_validation_profile(profile_path: Path, config: dict) -> dict:
         "checkpoint": config["checkpoint"],
         "seed": config["seed"],
         "fixed_hcer_threshold": config["evaluation"]["fixed_hcer_threshold"],
-        "adaptive_hcer_percentile": config["evaluation"]["adaptive_hcer_percentile"]
+        "adaptive_hcer_percentile": config["evaluation"]["adaptive_hcer_percentile"],
+        "rank_hcer_top_fraction": config["evaluation"]["rank_hcer_top_fraction"]
     }
 
     for name, expected_value in expected_values.items():
@@ -204,6 +205,7 @@ def summarise_condition(
     fixed_hcer_threshold: float,
     adaptive_hcer_threshold: float,
     adaptive_hcer_percentile: float,
+    rank_hcer_top_fraction: float,
     split_metadata: dict[str, object]
 ) -> dict:
     """Summarise one GTSRB evaluation condition."""
@@ -216,16 +218,11 @@ def summarise_condition(
     predicted_labels = [row["predicted_label"] for row in rows]
     first_row = rows[0]
 
-    hcer_fixed = high_confidence_error_rate(
-        correct,
-        confidences,
-        threshold=fixed_hcer_threshold
-    )
-    hcer_adaptive = high_confidence_error_rate(
-        correct,
-        confidences,
-        threshold=adaptive_hcer_threshold
-    )
+    hcer_fixed = high_confidence_error_rate(correct, confidences, threshold=fixed_hcer_threshold)
+    hcer_adaptive = high_confidence_error_rate(correct, confidences, threshold=adaptive_hcer_threshold)
+    hcer_adaptive_coverage = high_confidence_coverage(confidences, threshold=adaptive_hcer_threshold)
+    hcer_rank = rank_based_high_confidence_error_rate(correct, confidences, top_fraction=rank_hcer_top_fraction)
+    hcer_rank_coverage = rank_based_high_confidence_coverage(confidences, top_fraction=rank_hcer_top_fraction)
 
     return {
         "dataset": first_row["dataset"],
@@ -247,6 +244,10 @@ def summarise_condition(
         "hcer": hcer_fixed,
         "hcer_fixed": hcer_fixed,
         "hcer_adaptive": hcer_adaptive,
+        "hcer_adaptive_coverage": hcer_adaptive_coverage,
+        "hcer_rank": hcer_rank,
+        "hcer_rank_coverage": hcer_rank_coverage,
+        "rank_hcer_top_fraction": rank_hcer_top_fraction,
         "fixed_hcer_threshold": fixed_hcer_threshold,
         "adaptive_hcer_threshold": adaptive_hcer_threshold,
         "adaptive_hcer_percentile": adaptive_hcer_percentile,
@@ -375,6 +376,7 @@ def main() -> None:
                 fixed_hcer_threshold=evaluation_config["fixed_hcer_threshold"],
                 adaptive_hcer_threshold=profile["adaptive_hcer_threshold"],
                 adaptive_hcer_percentile=profile["adaptive_hcer_percentile"],
+                rank_hcer_top_fraction=profile["rank_hcer_top_fraction"],
                 split_metadata=split_metadata
             )
         )

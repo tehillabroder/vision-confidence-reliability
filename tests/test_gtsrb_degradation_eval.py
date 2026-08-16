@@ -33,7 +33,7 @@ def valid_config() -> dict:
         "model": "GTSRBCNN",
         "checkpoint": "checkpoints/gtsrb_cnn.pt",
         "seed": 42,
-        "evaluation": {"fixed_hcer_threshold": 0.90, "adaptive_hcer_percentile": 90},
+        "evaluation": {"fixed_hcer_threshold": 0.90, "adaptive_hcer_percentile": 90, "rank_hcer_top_fraction": 0.10},
         "training": {"validation_size": 4000, "validation_split": "stratified_track"}
     }
 
@@ -71,7 +71,8 @@ def valid_profile() -> dict:
         "split_metadata": valid_split_metadata(),
         "fixed_hcer_threshold": 0.90,
         "adaptive_hcer_percentile": 90,
-        "adaptive_hcer_threshold": 0.80
+        "adaptive_hcer_threshold": 0.80,
+        "rank_hcer_top_fraction": 0.10
     }
 
 def test_build_experiment_conditions_includes_undegraded_baseline():
@@ -241,6 +242,7 @@ def test_summarise_condition_includes_balanced_accuracy_and_hcer():
         fixed_hcer_threshold=0.90,
         adaptive_hcer_threshold=0.80,
         adaptive_hcer_percentile=90,
+        rank_hcer_top_fraction=0.50,
         split_metadata=valid_split_metadata()
     )
 
@@ -252,6 +254,10 @@ def test_summarise_condition_includes_balanced_accuracy_and_hcer():
     assert summary["hcer_fixed"] == pytest.approx(0.0)
     # the adaptive 0.80 threshold includes three predictions, with one high-confidence error
     assert summary["hcer_adaptive"] == pytest.approx(0.25)
+    assert summary["hcer_adaptive_coverage"] == pytest.approx(0.75)
+    assert summary["hcer_rank"] == pytest.approx(0.25)
+    assert summary["hcer_rank_coverage"] == pytest.approx(0.50)
+    assert summary["rank_hcer_top_fraction"] == pytest.approx(0.50)
     assert summary["num_examples"] == 4
 
 def test_load_validation_profile_accepts_matching_profile(tmp_path):
@@ -274,7 +280,8 @@ def test_load_validation_profile_accepts_matching_profile(tmp_path):
         ("checkpoint", "checkpoints/other.pt"),
         ("seed", 7),
         ("fixed_hcer_threshold", 0.75),
-        ("adaptive_hcer_percentile", 95)
+        ("adaptive_hcer_percentile", 95),
+        ("rank_hcer_top_fraction", 0.20)
     ]
 )
 def test_load_validation_profile_rejects_mismatch(tmp_path, name, value):
