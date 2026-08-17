@@ -1,5 +1,6 @@
 """Load and validate experiment configuration."""
 
+from __future__ import annotations
 from pathlib import Path
 import shutil
 
@@ -45,11 +46,11 @@ def _require_number_in_range(value: object, name: str, minimum: float, maximum: 
     if not minimum <= value <= maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}.")
     
-def _validate_trust_thresholds(thresholds: object, name: str) -> None:
+def _validate_trust_thresholds(thresholds: object, name: str, metrics: list[str] | tuple[str, ...]) -> None:
     if not isinstance(thresholds, dict):
         raise ValueError(f"{name} must be a mapping.")
 
-    for metric in TRUST_METRICS:
+    for metric in metrics:
         value = thresholds.get(metric)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
             raise ValueError(f"{name}.{metric} must be a non-negative number.")
@@ -63,16 +64,24 @@ def _validate_trust_policy(policy: object) -> None:
     if isinstance(error_floor, bool) or not isinstance(error_floor, (int, float)) or not 0 < error_floor <= 1:
         raise ValueError("trust_policy.error_denominator_floor must be greater than 0 and no greater than 1.")
 
+    active_metrics = policy.get("active_metrics", TRUST_METRICS)
+    if not isinstance(active_metrics, (list, tuple)) or not active_metrics:
+        raise ValueError("trust_policy.active_metrics must be a non-empty list.")
+    if any(metric not in TRUST_METRICS for metric in active_metrics):
+        raise ValueError("trust_policy.active_metrics contains an unsupported metric.")
+    if len(active_metrics) != len(set(active_metrics)):
+        raise ValueError("trust_policy.active_metrics must not contain duplicates.")
+
     caution = policy.get("caution")
     do_not_trust = policy.get("do_not_trust")
-    _validate_trust_thresholds(caution, "trust_policy.caution")
-    _validate_trust_thresholds(do_not_trust, "trust_policy.do_not_trust")
+    _validate_trust_thresholds(caution, "trust_policy.caution", active_metrics)
+    _validate_trust_thresholds(do_not_trust, "trust_policy.do_not_trust", active_metrics)
 
     # stronger warnings must not be easier to trigger than caution warnings
-    for metric in TRUST_METRICS:
+    for metric in active_metrics:
         if do_not_trust[metric] < caution[metric]:
             raise ValueError(f"trust_policy.do_not_trust.{metric} must be at least the caution threshold.")
-
+        
 def validate_config(config: dict) -> None:
     for key in ("dataset", "model", "data_dir", "checkpoint", "output_dir", "validation_profile"):
         _require_non_empty_string(config.get(key), key)

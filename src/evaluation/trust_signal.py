@@ -2,7 +2,7 @@
 Create baseline-relative trust signals.
 This is an experimental warning signal, not a safety guarantee.
 """
-
+from __future__ import annotations
 from src.utils.config import TRUST_METRICS
 RULE_LABELS = {
     "absolute_accuracy_drop": "absolute accuracy drop",
@@ -59,9 +59,9 @@ def calculate_deterioration(condition_metrics: dict, baseline_metrics: dict, err
         "adaptive_hcer_increase": adaptive_hcer_increase
     }
 
-def _find_triggered_metrics(deterioration: dict, thresholds: dict) -> list[str]:
+def _find_triggered_metrics(deterioration: dict, thresholds: dict, active_metrics: list[str] | tuple[str, ...]) -> list[str]:
     return [
-        metric for metric in TRUST_METRICS
+        metric for metric in active_metrics
         if deterioration[metric] >= thresholds[metric]
     ]
 
@@ -93,7 +93,8 @@ def _build_rule_explanations(
 def assign_trust_signal(condition_metrics: dict, baseline_metrics: dict, trust_policy: dict) -> dict:
 
     deterioration = calculate_deterioration(condition_metrics, baseline_metrics, trust_policy["error_denominator_floor"])
-    do_not_trust_metrics = _find_triggered_metrics(deterioration, trust_policy["do_not_trust"])
+    active_metrics = trust_policy.get("active_metrics", TRUST_METRICS)
+    do_not_trust_metrics = _find_triggered_metrics(deterioration, trust_policy["do_not_trust"], active_metrics)
 
     # one severe rule is enough to justify the strongest warning
     if do_not_trust_metrics:
@@ -103,7 +104,8 @@ def assign_trust_signal(condition_metrics: dict, baseline_metrics: dict, trust_p
     else:
         caution_metrics = _find_triggered_metrics(
             deterioration,
-            trust_policy["caution"]
+            trust_policy["caution"], 
+            active_metrics
         )
         if caution_metrics:
             signal = "caution"

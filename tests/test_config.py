@@ -175,3 +175,30 @@ def test_load_config_rejects_gtsrb_random_split(tmp_path):
 
     with pytest.raises(ValueError, match="stratified_track"):
         load_config(config_path)
+
+def test_load_config_accepts_selected_trust_metrics(tmp_path):
+    # confirm a dataset can exclude an audited metric from its trust policy
+    config = valid_config()
+    config["trust_policy"]["active_metrics"] = [
+        "absolute_accuracy_drop",
+        "relative_error_increase",
+        "ece_increase",
+        "gap_deterioration",
+        "fixed_hcer_increase"
+    ]
+    del config["trust_policy"]["caution"]["adaptive_hcer_increase"]
+    del config["trust_policy"]["do_not_trust"]["adaptive_hcer_increase"]
+    config_path = write_config(tmp_path, config)
+
+    loaded = load_config(config_path)
+
+    assert "adaptive_hcer_increase" not in loaded["trust_policy"]["active_metrics"]
+
+def test_load_config_rejects_unsupported_trust_metric(tmp_path):
+    # ensure unknown trust rules cannot be enabled silently
+    config = valid_config()
+    config["trust_policy"]["active_metrics"] = ["unknown_metric"]
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="unsupported metric"):
+        load_config(config_path)

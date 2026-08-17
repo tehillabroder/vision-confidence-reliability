@@ -144,3 +144,31 @@ def test_gap_direction_detects_movement_towards_overconfidence():
 def test_gap_direction_treats_tiny_difference_as_unchanged():
     # ensure floating-point noise does not create a false direction
     assert determine_gap_direction(1e-13) == "unchanged"
+
+def test_trust_signal_ignores_inactive_adaptive_hcer():
+    # confirm that the audited adaptive HCER stays as evidence without driving the warning
+    trust_policy = {
+        **TRUST_POLICY,
+        "active_metrics": [
+            "absolute_accuracy_drop",
+            "relative_error_increase",
+            "ece_increase",
+            "gap_deterioration",
+            "fixed_hcer_increase"
+        ],
+        "caution": {
+            metric: value
+            for metric, value in TRUST_POLICY["caution"].items()
+            if metric != "adaptive_hcer_increase"
+        },
+        "do_not_trust": {
+            metric: value
+            for metric, value in TRUST_POLICY["do_not_trust"].items()
+            if metric != "adaptive_hcer_increase"
+        }
+    }
+    condition = condition_metrics(hcer_adaptive=0.50)
+    result = assign_trust_signal(condition, UNDEGRADED_BASELINE, trust_policy)
+    assert result["adaptive_hcer_increase"] == pytest.approx(0.498)
+    assert result["trust_signal"] == "trust"
+    assert result["triggered_rules"] == []
