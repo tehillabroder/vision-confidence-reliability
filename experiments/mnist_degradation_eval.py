@@ -7,10 +7,10 @@ from typing import Optional
 import pandas as pd
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from src.datasets.mnist import DegradedMNIST
+from src.evaluation.runner import build_experiment_conditions, collect_prediction_rows
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
 from src.metrics.reliability import calibration_bins, expected_calibration_error, high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
@@ -26,7 +26,6 @@ def validate_evaluation_settings(ece_bins: int, hcer_threshold: float) -> None:
     if not 0.0 <= hcer_threshold <= 1.0:
         raise ValueError("HCER threshold must be between 0 and 1.")
     
-@torch.no_grad()
 def evaluate_condition(
     model: nn.Module,
     device: torch.device,
@@ -41,35 +40,18 @@ def evaluate_condition(
     set_seed(seed)
     dataset = DegradedMNIST(data_dir, degradation, severity)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    
-    model.eval()
-    rows = []
-    
-    for batch_index, (images, labels, image_ids) in enumerate(loader):
-        if max_eval_batches is not None and batch_index >= max_eval_batches:
-            break
-        
-        images, labels = images.to(device), labels.to(device)
-        probabilities = F.softmax(model(images), dim=1)
-        confidences, predictions = probabilities.max(dim=1)
-        batch_correct = predictions.eq(labels)
-        for i in range(labels.size(0)):
-            rows.append({
-                "dataset": "MNIST",
-                "model": "SimpleCNN",
-                "seed": seed,
-                "image_id": int(image_ids[i].item()),
-                "true_label": int(labels[i].item()),
-                "predicted_label": int(predictions[i].item()),
-                "correct": int(batch_correct[i].item()),
-                "confidence": float(confidences[i].item()),
-                "degradation": degradation,
-                "severity": severity
-            })
-    if not rows:
-        raise ValueError("Evaluation produced no predictions.")
-            
-    return rows
+
+    return collect_prediction_rows(
+        model=model,
+        loader=loader,
+        device=device,
+        dataset_name="MNIST",
+        model_name="SimpleCNN",
+        degradation=degradation,
+        severity=severity,
+        seed=seed,
+        max_eval_batches=max_eval_batches
+    )
 
 def summarise_condition(
     rows: list[dict],
@@ -163,11 +145,8 @@ def main() -> None:
     all_prediction_rows = []
     all_metric_rows = []
     all_calibration_rows = []
-    experiment_conditions = [("none", 0)]
 
-    for degradation in evaluation_config["degradations"]:
-        for severity in evaluation_config["severity_levels"]:
-            experiment_conditions.append((degradation, severity))
+    experiment_conditions = build_experiment_conditions(evaluation_config["degradations"], evaluation_config["severity_levels"])
 
     for degradation, severity in experiment_conditions:
         print(f"Evaluating {degradation}, severity {severity}")

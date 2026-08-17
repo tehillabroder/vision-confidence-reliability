@@ -6,14 +6,8 @@ import pytest
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset
-from experiments.gtsrb_degradation_eval import (
-    build_experiment_conditions,
-    evaluate_condition,
-    load_validation_profile,
-    save_evaluation_outputs,
-    summarise_condition,
-    validate_evaluation_sources
-)
+from experiments.gtsrb_degradation_eval import evaluate_condition, load_validation_profile, save_evaluation_outputs, summarise_condition, validate_evaluation_sources
+from src.evaluation.runner import build_experiment_conditions
 
 class StaticModel(nn.Module):
     """Return fixed predictions for synthetic images."""

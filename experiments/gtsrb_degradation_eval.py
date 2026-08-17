@@ -9,10 +9,11 @@ from typing import Optional
 import pandas as pd
 import torch
 import torch.nn as nn
-
 from sklearn.metrics import balanced_accuracy_score
 from torch.utils.data import DataLoader
+
 from src.datasets.gtsrb import GTSRB_CLASS_COUNT, build_gtsrb_test_dataset
+from src.evaluation.runner import build_experiment_conditions, collect_prediction_rows
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
 from src.metrics.reliability import calibration_bins, expected_calibration_error, high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
@@ -27,17 +28,6 @@ def select_device() -> torch.device:
     if torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
-
-def build_experiment_conditions(
-    degradations: list[str],
-    severity_levels: list[int]
-) -> list[tuple[str, int]]:
-    """Build the undegraded and degraded evaluation conditions."""
-    conditions = [("none", 0)]
-    for degradation in degradations:
-        for severity in severity_levels:
-            conditions.append((degradation, severity))
-    return conditions
 
 def load_validation_profile(profile_path: Path, config: dict) -> dict:
     """Load and validate the undegraded validation profile."""
@@ -147,7 +137,6 @@ def validate_evaluation_sources(
 
     return checkpoint_split
 
-@torch.no_grad()
 def evaluate_condition(
     model: nn.Module,
     device: torch.device,
@@ -159,45 +148,22 @@ def evaluate_condition(
     max_eval_batches: Optional[int]
 ) -> list[dict]:
     """Evaluate one GTSRB degradation condition."""
-    # reuse noise draws so severity comparisons remain controlled
+    # reuse identical noise pattern so severity comparisons remain controlled
     set_seed(seed)
-    dataset = build_gtsrb_test_dataset(
-        data_dir=data_dir,
-        degradation=degradation,
-        severity=severity
-    )
+    dataset = build_gtsrb_test_dataset(data_dir=data_dir, degradation=degradation, severity=severity)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    model.eval()
-    rows = []
 
-    for batch_index, (images, labels, image_ids) in enumerate(loader):
-        if max_eval_batches is not None and batch_index >= max_eval_batches:
-            break
-
-        images = images.to(device)
-        labels = labels.to(device)
-        probabilities = torch.softmax(model(images), dim=1)
-        confidences, predictions = probabilities.max(dim=1)
-        batch_correct = predictions.eq(labels)
-
-        for index in range(labels.size(0)):
-            rows.append({
-                "dataset": "GTSRB",
-                "model": "GTSRBCNN",
-                "seed": seed,
-                "image_id": int(image_ids[index].item()),
-                "true_label": int(labels[index].item()),
-                "predicted_label": int(predictions[index].item()),
-                "correct": int(batch_correct[index].item()),
-                "confidence": float(confidences[index].item()),
-                "degradation": degradation,
-                "severity": severity
-            })
-
-    if not rows:
-        raise ValueError("Evaluation produced no predictions.")
-
-    return rows
+    return collect_prediction_rows(
+        model=model,
+        loader=loader,
+        device=device,
+        dataset_name="GTSRB",
+        model_name="GTSRBCNN",
+        degradation=degradation,
+        severity=severity,
+        seed=seed,
+        max_eval_batches=max_eval_batches
+    )
 
 def summarise_condition(
     rows: list[dict],
