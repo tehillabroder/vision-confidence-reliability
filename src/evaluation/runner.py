@@ -3,6 +3,7 @@
 from typing import Iterable, Optional
 import torch
 import torch.nn as nn
+from src.metrics.reliability import calibration_bins
 
 def build_experiment_conditions(degradations: list[str], severity_levels: list[int]) -> list[tuple[str, int]]:
     conditions = [("none", 0)]
@@ -10,6 +11,22 @@ def build_experiment_conditions(degradations: list[str], severity_levels: list[i
         for severity in severity_levels:
             conditions.append((degradation, severity))
     return conditions
+
+def build_calibration_rows(rows: list[dict], metadata: dict) -> list[dict]:
+    if not rows:
+        raise ValueError("Cannot build calibration rows from empty predictions.")
+    if "ece_bins" not in metadata:
+        raise ValueError("Calibration metadata must include ece_bins.")
+
+    correct = [row["correct"] for row in rows]
+    confidences = [row["confidence"] for row in rows]
+    condition_rows = calibration_bins(correct, confidences, n_bins=metadata["ece_bins"])
+
+    # keep the columns in whatever order the caller passes them in so existing CSV files and table layouts don't break
+    for row in condition_rows:
+        row.update(metadata)
+
+    return condition_rows
 
 @torch.no_grad()
 def collect_prediction_rows(

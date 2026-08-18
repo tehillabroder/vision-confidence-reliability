@@ -10,9 +10,9 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from src.datasets.mnist import DegradedMNIST
-from src.evaluation.runner import build_experiment_conditions, collect_prediction_rows
+from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
-from src.metrics.reliability import calibration_bins, expected_calibration_error, high_confidence_error_rate
+from src.metrics.reliability import expected_calibration_error, high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
 from src.models.simple_cnn import SimpleCNN
 from src.utils.seeds import set_seed
@@ -172,22 +172,16 @@ def main() -> None:
             )
         )
 
-        correct = [row["correct"] for row in rows]
-        confidences = [row["confidence"] for row in rows]
-        condition_bins = calibration_bins(
-            correct,
-            confidences,
-            n_bins=evaluation_config["ece_bins"]
-        )
-
-        for bin_row in condition_bins:
-            bin_row["dataset"] = config["dataset"]
-            bin_row["model"] = config["model"]
-            bin_row["seed"] = config["seed"]
-            bin_row["ece_bins"] = evaluation_config["ece_bins"]
-            bin_row["degradation"] = degradation
-            bin_row["severity"] = severity
-            all_calibration_rows.append(bin_row)
+        calibration_metadata = {
+            "dataset": config["dataset"],
+            "model": config["model"],
+            "seed": config["seed"],
+            # ece_bins remains before degradation and severity on purpose to match existing MNIST output schema
+            "ece_bins": evaluation_config["ece_bins"],
+            "degradation": degradation,
+            "severity": severity
+        }
+        all_calibration_rows.extend(build_calibration_rows(rows, calibration_metadata))
 
     predictions_path = output_path / "predictions.csv"
     metrics_path = output_path / "metrics_summary.csv"

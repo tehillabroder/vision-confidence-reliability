@@ -3,7 +3,7 @@
 import pytest
 import torch
 import torch.nn as nn
-from src.evaluation.runner import build_experiment_conditions, collect_prediction_rows
+from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows
 
 class StaticModel(nn.Module):
     """Return fixed predictions for synthetic images."""
@@ -80,4 +80,48 @@ def test_collect_prediction_rows_rejects_empty_loader():
             severity=0,
             seed=42,
             max_eval_batches=None
+        )
+
+def test_build_calibration_rows_preserves_metadata_schema():
+    # confirm that caller metadata and column order are preserved
+    rows = [
+        {"correct": 1, "confidence": 0.90},
+        {"correct": 0, "confidence": 0.60}
+    ]
+    metadata = {
+        "dataset": "MNIST",
+        "model": "SimpleCNN",
+        "seed": 42,
+        "ece_bins": 2,
+        "degradation": "blur",
+        "severity": 2
+    }
+
+    calibration_rows = build_calibration_rows(rows, metadata)
+
+    assert len(calibration_rows) == 2
+    assert list(calibration_rows[0]) == [
+        "bin",
+        "bin_lower",
+        "bin_upper",
+        "count",
+        "bin_accuracy",
+        "bin_confidence",
+        "dataset",
+        "model",
+        "seed",
+        "ece_bins",
+        "degradation",
+        "severity"
+    ]
+    assert all(row["dataset"] == "MNIST" for row in calibration_rows)
+    assert all(row["degradation"] == "blur" for row in calibration_rows)
+    assert all(row["severity"] == 2 for row in calibration_rows)
+
+def test_build_calibration_rows_requires_ece_bins():
+    # ensure the calibration output records the binning configuration
+    with pytest.raises(ValueError, match="must include ece_bins"):
+        build_calibration_rows(
+            rows=[{"correct": 1, "confidence": 0.90}],
+            metadata={"dataset": "MNIST"}
         )

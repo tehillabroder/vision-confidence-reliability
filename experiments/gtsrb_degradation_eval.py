@@ -13,9 +13,9 @@ from sklearn.metrics import balanced_accuracy_score
 from torch.utils.data import DataLoader
 
 from src.datasets.gtsrb import GTSRB_CLASS_COUNT, build_gtsrb_test_dataset
-from src.evaluation.runner import build_experiment_conditions, collect_prediction_rows
+from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
-from src.metrics.reliability import calibration_bins, expected_calibration_error, high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
+from src.metrics.reliability import expected_calibration_error, high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
 from src.models.gtsrb_cnn import GTSRBCNN
 from src.utils.config import load_config, save_config_copy
@@ -221,23 +221,6 @@ def summarise_condition(
         "num_examples": len(rows)
     }
 
-def build_calibration_rows(rows: list[dict], ece_bins: int) -> list[dict]:
-    """Build calibration-bin rows with condition metadata."""
-    correct = [row["correct"] for row in rows]
-    confidences = [row["confidence"] for row in rows]
-    first_row = rows[0]
-    condition_rows = calibration_bins(correct, confidences, n_bins=ece_bins)
-
-    for row in condition_rows:
-        row["dataset"] = first_row["dataset"]
-        row["model"] = first_row["model"]
-        row["seed"] = first_row["seed"]
-        row["degradation"] = first_row["degradation"]
-        row["severity"] = first_row["severity"]
-        row["ece_bins"] = ece_bins
-
-    return condition_rows
-
 def save_evaluation_outputs(
     prediction_rows: list[dict],
     metric_rows: list[dict],
@@ -346,12 +329,16 @@ def main() -> None:
                 split_metadata=split_metadata
             )
         )
-        calibration_rows.extend(
-            build_calibration_rows(
-                rows,
-                evaluation_config["ece_bins"]
-            )
-        )
+        calibration_metadata = {
+            "dataset": rows[0]["dataset"],
+            "model": rows[0]["model"],
+            "seed": rows[0]["seed"],
+            "degradation": rows[0]["degradation"],
+            "severity": rows[0]["severity"],
+            # ece_bins is last here, matching the existing GTSRB calibration schema
+            "ece_bins": evaluation_config["ece_bins"]
+        }
+        calibration_rows.extend(build_calibration_rows(rows, calibration_metadata))
 
     paths = save_evaluation_outputs(
         prediction_rows=prediction_rows,
