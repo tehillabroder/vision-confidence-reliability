@@ -1,9 +1,12 @@
 """Shared helpers for degradation evaluation."""
 
+from pathlib import Path
 from typing import Iterable, Optional
 import torch
 import torch.nn as nn
+import pandas as pd
 from src.metrics.reliability import calibration_bins
+from src.utils.config import save_config_copy
 
 def build_experiment_conditions(degradations: list[str], severity_levels: list[int]) -> list[tuple[str, int]]:
     conditions = [("none", 0)]
@@ -27,6 +30,31 @@ def build_calibration_rows(rows: list[dict], metadata: dict) -> list[dict]:
         row.update(metadata)
 
     return condition_rows
+
+def save_core_evaluation_outputs(
+    prediction_rows: list[dict],
+    metric_rows: list[dict],
+    calibration_rows: list[dict],
+    config_path: Path,
+    output_dir: Path
+) -> dict[str, Path]:
+    # no empty-output validation here 
+    # GTSRB already has that check, while MNIST currently does not
+    output_dir.mkdir(parents=True, exist_ok=True)
+    paths = {
+        "predictions": output_dir / "predictions.csv",
+        "metrics": output_dir / "metrics_summary.csv",
+        "calibration": output_dir / "calibration_bins.csv",
+        "config": output_dir / "config.yaml"
+    }
+
+    pd.DataFrame(prediction_rows).to_csv(paths["predictions"], index=False)
+    pd.DataFrame(metric_rows).to_csv(paths["metrics"], index=False)
+    pd.DataFrame(calibration_rows).to_csv(paths["calibration"], index=False)
+
+    save_config_copy(config_path, paths["config"])
+
+    return paths
 
 @torch.no_grad()
 def collect_prediction_rows(

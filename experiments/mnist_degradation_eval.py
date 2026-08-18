@@ -3,20 +3,18 @@
 import argparse
 from pathlib import Path
 from typing import Optional
-
-import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from src.datasets.mnist import DegradedMNIST
-from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows
+from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
 from src.metrics.reliability import expected_calibration_error, high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
 from src.models.simple_cnn import SimpleCNN
 from src.utils.seeds import set_seed
-from src.utils.config import load_config, save_config_copy
+from src.utils.config import load_config
 from src.evaluation.validation_profile import load_validation_profile, validate_validation_profile_source
 
 
@@ -133,7 +131,6 @@ def main() -> None:
     set_seed(config["seed"])
 
     output_path = Path(config["output_dir"])
-    output_path.mkdir(parents=True, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -183,20 +180,17 @@ def main() -> None:
         }
         all_calibration_rows.extend(build_calibration_rows(rows, calibration_metadata))
 
-    predictions_path = output_path / "predictions.csv"
-    metrics_path = output_path / "metrics_summary.csv"
-    calibration_path = output_path / "calibration_bins.csv"
-    config_copy_path = output_path / "config.yaml"
-
-    pd.DataFrame(all_prediction_rows).to_csv(predictions_path, index=False)
-    pd.DataFrame(all_metric_rows).to_csv(metrics_path, index=False)
-    pd.DataFrame(all_calibration_rows).to_csv(calibration_path, index=False)
-    save_config_copy(config_path, config_copy_path)
-
-    print(f"Saved predictions to {predictions_path}")
-    print(f"Saved metrics to {metrics_path}")
-    print(f"Saved calibration bins to {calibration_path}")
-    print(f"Saved config to {config_copy_path}")
+    paths = save_core_evaluation_outputs(
+        prediction_rows=all_prediction_rows,
+        metric_rows=all_metric_rows,
+        calibration_rows=all_calibration_rows,
+        config_path=config_path,
+        output_dir=output_path
+    )
+    print(f"Saved predictions to {paths['predictions']}")
+    print(f"Saved metrics to {paths['metrics']}")
+    print(f"Saved calibration bins to {paths['calibration']}")
+    print(f"Saved config to {paths['config']}")
 
 if __name__ == "__main__":
     main()

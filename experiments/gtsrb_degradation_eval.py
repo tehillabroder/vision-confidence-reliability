@@ -2,23 +2,19 @@
 
 import argparse
 import json
-
 from pathlib import Path
 from typing import Optional
-
-import pandas as pd
 import torch
 import torch.nn as nn
 from sklearn.metrics import balanced_accuracy_score
 from torch.utils.data import DataLoader
-
 from src.datasets.gtsrb import GTSRB_CLASS_COUNT, build_gtsrb_test_dataset
-from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows
+from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
 from src.metrics.reliability import expected_calibration_error, high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
 from src.models.gtsrb_cnn import GTSRBCNN
-from src.utils.config import load_config, save_config_copy
+from src.utils.config import load_config
 from src.datasets.gtsrb_split import validate_gtsrb_split_metadata
 from src.utils.seeds import set_seed
 
@@ -233,24 +229,23 @@ def save_evaluation_outputs(
     if not prediction_rows or not metric_rows or not calibration_rows:
         raise ValueError("Evaluation outputs must not be empty.")
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    paths = {
-        "predictions": output_dir / "predictions.csv",
-        "metrics": output_dir / "metrics_summary.csv",
-        "calibration": output_dir / "calibration_bins.csv",
-        "split_metadata": output_dir / "split_metadata.json",
-        "config": output_dir / "config.yaml"
-    }
-
-    pd.DataFrame(prediction_rows).to_csv(paths["predictions"], index=False)
-    pd.DataFrame(metric_rows).to_csv(paths["metrics"], index=False)
-    pd.DataFrame(calibration_rows).to_csv(paths["calibration"], index=False)
-    paths["split_metadata"].write_text(
-        json.dumps(split_metadata, indent=2),
-        encoding="utf-8"
+    core_paths = save_core_evaluation_outputs(
+        prediction_rows=prediction_rows,
+        metric_rows=metric_rows,
+        calibration_rows=calibration_rows,
+        config_path=config_path,
+        output_dir=output_dir
     )
-    save_config_copy(config_path, paths["config"])
-    return paths
+    split_metadata_path = output_dir / "split_metadata.json"
+    split_metadata_path.write_text(json.dumps(split_metadata, indent=2), encoding="utf-8")
+
+    return {
+        "predictions": core_paths["predictions"],
+        "metrics": core_paths["metrics"],
+        "calibration": core_paths["calibration"],
+        "split_metadata": split_metadata_path,
+        "config": core_paths["config"]
+    }
 
 def load_evaluation_model(
     checkpoint_path: Path,

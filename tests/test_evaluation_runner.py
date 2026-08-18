@@ -1,9 +1,10 @@
 """Tests for shared degradation evaluation helpers."""
 
+import pandas as pd
 import pytest
 import torch
 import torch.nn as nn
-from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows
+from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs
 
 class StaticModel(nn.Module):
     """Return fixed predictions for synthetic images."""
@@ -125,3 +126,23 @@ def test_build_calibration_rows_requires_ece_bins():
             rows=[{"correct": 1, "confidence": 0.90}],
             metadata={"dataset": "MNIST"}
         )
+
+def test_save_core_evaluation_outputs_creates_expected_files(tmp_path):
+    # confirm the shared evaluation evidence files are saved
+    # GTSRB already has a unit test that makes sure split_metadata.json has been saved
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("dataset: Example\n", encoding="utf-8")
+
+    paths = save_core_evaluation_outputs(
+        prediction_rows=[{"dataset": "Example", "confidence": 0.9}],
+        metric_rows=[{"dataset": "Example", "accuracy": 1.0}],
+        calibration_rows=[{"dataset": "Example", "bin": 9, "count": 1}],
+        config_path=config_path,
+        output_dir=tmp_path / "results"
+    )
+    assert set(paths) == {"predictions", "metrics", "calibration", "config"}
+    assert all(path.exists() for path in paths.values())
+    assert paths["config"].read_text(encoding="utf-8") == "dataset: Example\n"
+    assert len(pd.read_csv(paths["predictions"])) == 1
+    assert len(pd.read_csv(paths["metrics"])) == 1
+    assert len(pd.read_csv(paths["calibration"])) == 1
