@@ -4,19 +4,8 @@ import pytest
 import torch
 
 import experiments.mnist_degradation_eval as evaluation
-from experiments.mnist_degradation_eval import evaluate_condition, load_evaluation_model, summarise_condition, validate_evaluation_settings
+from experiments.mnist_degradation_eval import evaluate_condition, load_evaluation_model, summarise_condition
 from src.models.simple_cnn import SimpleCNN
-
-@pytest.mark.parametrize("threshold", [-0.01, 1.01])
-def test_evaluation_rejects_invalid_hcer_threshold(threshold):
-    # ensure the threshold stays between 0 and 1
-    with pytest.raises(ValueError, match="between 0 and 1"):
-        validate_evaluation_settings(ece_bins=10, hcer_threshold=threshold)
-
-def test_evaluation_rejects_invalid_ece_bin_count():
-    # ensure ECE uses at least one bin
-    with pytest.raises(ValueError, match="greater than zero"):
-        validate_evaluation_settings(ece_bins=0, hcer_threshold=0.90)
 
 def test_load_evaluation_model_rejects_missing_checkpoint(tmp_path):
     # check that a missing checkpoint raises an error
@@ -88,7 +77,7 @@ def test_summary_saves_evaluation_settings():
     ]
     summary = summarise_condition(
         rows=rows,
-        n_bins=5,
+        ece_bins=5,
         fixed_hcer_threshold=0.90,
         adaptive_hcer_threshold=0.60,
         adaptive_hcer_percentile=90
@@ -103,3 +92,14 @@ def test_summary_saves_evaluation_settings():
     assert summary["hcer_fixed"] == 0.0
     assert summary["hcer_adaptive"] == 0.5
     assert summary["num_examples"] == 2
+
+def test_summarise_condition_rejects_empty_rows():
+    # make sure MNIST summaries cannot be created without evaluation data
+    with pytest.raises(ValueError, match="empty evaluation condition"):
+        summarise_condition(
+            rows=[],
+            ece_bins=10,
+            fixed_hcer_threshold=0.90,
+            adaptive_hcer_threshold=0.80,
+            adaptive_hcer_percentile=90
+        )

@@ -8,7 +8,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from src.datasets.mnist import DegradedMNIST
-from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs
+from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs, validate_evaluation_settings
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
 from src.metrics.reliability import expected_calibration_error, high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
@@ -17,12 +17,6 @@ from src.utils.seeds import set_seed
 from src.utils.config import load_config
 from src.evaluation.validation_profile import load_validation_profile, validate_validation_profile_source
 
-
-def validate_evaluation_settings(ece_bins: int, hcer_threshold: float) -> None:
-    if ece_bins <= 0:
-        raise ValueError("ECE bin count must be greater than zero.")
-    if not 0.0 <= hcer_threshold <= 1.0:
-        raise ValueError("HCER threshold must be between 0 and 1.")
     
 def evaluate_condition(
     model: nn.Module,
@@ -53,13 +47,15 @@ def evaluate_condition(
 
 def summarise_condition(
     rows: list[dict],
-    n_bins: int,
+    ece_bins: int,
     fixed_hcer_threshold: float,
     adaptive_hcer_threshold: float,
     adaptive_hcer_percentile: float
 ) -> dict:
-    validate_evaluation_settings(n_bins, fixed_hcer_threshold)
-    validate_evaluation_settings(n_bins, adaptive_hcer_threshold)
+    if not rows:
+        raise ValueError("Cannot summarise an empty evaluation condition.")
+
+    validate_evaluation_settings(ece_bins, fixed_hcer_threshold, adaptive_hcer_threshold)
 
     correct = [row["correct"] for row in rows]
     confidences = [row["confidence"] for row in rows]
@@ -76,12 +72,12 @@ def summarise_condition(
         "accuracy": accuracy_from_correct(correct),
         "mean_confidence": mean_confidence(confidences),
         "confidence_accuracy_gap": confidence_accuracy_gap(correct, confidences),
-        "ece": expected_calibration_error(correct, confidences, n_bins=n_bins),
+        "ece": expected_calibration_error(correct, confidences, n_bins=ece_bins),
         # keep the original column until the trust and plotting code is updated
         "hcer": fixed_hcer,
         "hcer_fixed": fixed_hcer,
         "hcer_adaptive": adaptive_hcer,
-        "ece_bins": n_bins,
+        "ece_bins": ece_bins,
         "fixed_hcer_threshold": fixed_hcer_threshold,
         "adaptive_hcer_threshold": adaptive_hcer_threshold,
         "adaptive_hcer_percentile": adaptive_hcer_percentile,
@@ -120,14 +116,7 @@ def main() -> None:
     )
 
     adaptive_hcer_threshold = validation_profile["adaptive_hcer_threshold"]
-    validate_evaluation_settings(
-        evaluation_config["ece_bins"],
-        evaluation_config["fixed_hcer_threshold"]
-    )
-    validate_evaluation_settings(
-        evaluation_config["ece_bins"],
-        adaptive_hcer_threshold
-    )
+    validate_evaluation_settings(evaluation_config["ece_bins"], evaluation_config["fixed_hcer_threshold"], adaptive_hcer_threshold)
     set_seed(config["seed"])
 
     output_path = Path(config["output_dir"])
@@ -162,23 +151,13 @@ def main() -> None:
         all_metric_rows.append(
             summarise_condition(
                 rows=rows,
-                n_bins=evaluation_config["ece_bins"],
+                ece_bins=evaluation_config["ece_bins"],
                 fixed_hcer_threshold=evaluation_config["fixed_hcer_threshold"],
                 adaptive_hcer_threshold=adaptive_hcer_threshold,
                 adaptive_hcer_percentile=evaluation_config["adaptive_hcer_percentile"]
             )
         )
-
-        calibration_metadata = {
-            "dataset": config["dataset"],
-            "model": config["model"],
-            "seed": config["seed"],
-            # ece_bins remains before degradation and severity on purpose to match existing MNIST output schema
-            "ece_bins": evaluation_config["ece_bins"],
-            "degradation": degradation,
-            "severity": severity
-        }
-        all_calibration_rows.extend(build_calibration_rows(rows, calibration_metadata))
+        all_calibration_rows.extend(build_calibration_rows(rows, evaluation_config["ece_bins"]))
 
     paths = save_core_evaluation_outputs(
         prediction_rows=all_prediction_rows,

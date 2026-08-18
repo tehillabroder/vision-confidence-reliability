@@ -15,21 +15,35 @@ def build_experiment_conditions(degradations: list[str], severity_levels: list[i
             conditions.append((degradation, severity))
     return conditions
 
-def build_calibration_rows(rows: list[dict], metadata: dict) -> list[dict]:
+def build_calibration_rows(rows: list[dict], ece_bins: int) -> list[dict]:
     if not rows:
         raise ValueError("Cannot build calibration rows from empty predictions.")
-    if "ece_bins" not in metadata:
-        raise ValueError("Calibration metadata must include ece_bins.")
 
     correct = [row["correct"] for row in rows]
     confidences = [row["confidence"] for row in rows]
-    condition_rows = calibration_bins(correct, confidences, n_bins=metadata["ece_bins"])
-
-    # keep the columns in whatever order the caller passes them in so existing CSV files and table layouts don't break
+    first_row = rows[0]
+    condition_rows = calibration_bins(correct, confidences, n_bins=ece_bins)
+    metadata = {
+        "dataset": first_row["dataset"],
+        "model": first_row["model"],
+        "seed": first_row["seed"],
+        "degradation": first_row["degradation"],
+        "severity": first_row["severity"],
+        "ece_bins": ece_bins
+    }
+    # keep one canonical calibration schema across datasets and models
     for row in condition_rows:
         row.update(metadata)
 
     return condition_rows
+
+def validate_evaluation_settings(ece_bins: int, fixed_hcer_threshold: float, adaptive_hcer_threshold: float) -> None:
+    if ece_bins <= 0:
+        raise ValueError("ECE bin count must be greater than zero.")
+    if not 0.0 <= fixed_hcer_threshold <= 1.0:
+        raise ValueError("Fixed HCER threshold must be between 0 and 1.")
+    if not 0.0 <= adaptive_hcer_threshold <= 1.0:
+        raise ValueError("Adaptive HCER threshold must be between 0 and 1.")
 
 def save_core_evaluation_outputs(
     prediction_rows: list[dict],
@@ -38,8 +52,9 @@ def save_core_evaluation_outputs(
     config_path: Path,
     output_dir: Path
 ) -> dict[str, Path]:
-    # no empty-output validation here 
-    # GTSRB already has that check, while MNIST currently does not
+    if not prediction_rows or not metric_rows or not calibration_rows:
+        raise ValueError("Evaluation outputs must not be empty.")
+    
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = {
         "predictions": output_dir / "predictions.csv",

@@ -9,7 +9,7 @@ import torch.nn as nn
 from sklearn.metrics import balanced_accuracy_score
 from torch.utils.data import DataLoader
 from src.datasets.gtsrb import GTSRB_CLASS_COUNT, build_gtsrb_test_dataset
-from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs
+from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs, validate_evaluation_settings
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
 from src.metrics.reliability import expected_calibration_error, high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
@@ -174,6 +174,8 @@ def summarise_condition(
     if not rows:
         raise ValueError("Cannot summarise an empty evaluation condition.")
 
+    validate_evaluation_settings(ece_bins, fixed_hcer_threshold, adaptive_hcer_threshold)
+
     correct = [row["correct"] for row in rows]
     confidences = [row["confidence"] for row in rows]
     true_labels = [row["true_label"] for row in rows]
@@ -226,8 +228,6 @@ def save_evaluation_outputs(
     output_dir: Path
 ) -> dict[str, Path]:
     """Save GTSRB evaluation evidence."""
-    if not prediction_rows or not metric_rows or not calibration_rows:
-        raise ValueError("Evaluation outputs must not be empty.")
 
     core_paths = save_core_evaluation_outputs(
         prediction_rows=prediction_rows,
@@ -272,6 +272,7 @@ def main() -> None:
         Path(config["validation_profile"]),
         config
     )
+    validate_evaluation_settings(evaluation_config["ece_bins"], evaluation_config["fixed_hcer_threshold"], profile["adaptive_hcer_threshold"])
 
     device = select_device()
     model, metadata = load_evaluation_model(
@@ -324,16 +325,7 @@ def main() -> None:
                 split_metadata=split_metadata
             )
         )
-        calibration_metadata = {
-            "dataset": rows[0]["dataset"],
-            "model": rows[0]["model"],
-            "seed": rows[0]["seed"],
-            "degradation": rows[0]["degradation"],
-            "severity": rows[0]["severity"],
-            # ece_bins is last here, matching the existing GTSRB calibration schema
-            "ece_bins": evaluation_config["ece_bins"]
-        }
-        calibration_rows.extend(build_calibration_rows(rows, calibration_metadata))
+        calibration_rows.extend(build_calibration_rows(rows, evaluation_config["ece_bins"]))
 
     paths = save_evaluation_outputs(
         prediction_rows=prediction_rows,

@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 import torch
 import torch.nn as nn
-from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs
+from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs, validate_evaluation_settings
 
 class StaticModel(nn.Module):
     """Return fixed predictions for synthetic images."""
@@ -83,22 +83,29 @@ def test_collect_prediction_rows_rejects_empty_loader():
             max_eval_batches=None
         )
 
-def test_build_calibration_rows_preserves_metadata_schema():
-    # confirm that caller metadata and column order are preserved
+def test_build_calibration_rows_produces_consistent_schema():
+    # tests that calibration evidence uses one shared column order
     rows = [
-        {"correct": 1, "confidence": 0.90},
-        {"correct": 0, "confidence": 0.60}
+        {
+            "dataset": "MNIST",
+            "model": "SimpleCNN",
+            "seed": 42,
+            "degradation": "blur",
+            "severity": 2,
+            "correct": 1,
+            "confidence": 0.90
+        },
+        {
+            "dataset": "MNIST",
+            "model": "SimpleCNN",
+            "seed": 42,
+            "degradation": "blur",
+            "severity": 2,
+            "correct": 0,
+            "confidence": 0.60
+        }
     ]
-    metadata = {
-        "dataset": "MNIST",
-        "model": "SimpleCNN",
-        "seed": 42,
-        "ece_bins": 2,
-        "degradation": "blur",
-        "severity": 2
-    }
-
-    calibration_rows = build_calibration_rows(rows, metadata)
+    calibration_rows = build_calibration_rows(rows, ece_bins=2)
 
     assert len(calibration_rows) == 2
     assert list(calibration_rows[0]) == [
@@ -111,21 +118,28 @@ def test_build_calibration_rows_preserves_metadata_schema():
         "dataset",
         "model",
         "seed",
-        "ece_bins",
         "degradation",
-        "severity"
+        "severity",
+        "ece_bins"
     ]
-    assert all(row["dataset"] == "MNIST" for row in calibration_rows)
-    assert all(row["degradation"] == "blur" for row in calibration_rows)
-    assert all(row["severity"] == 2 for row in calibration_rows)
 
-def test_build_calibration_rows_requires_ece_bins():
-    # ensure the calibration output records the binning configuration
-    with pytest.raises(ValueError, match="must include ece_bins"):
-        build_calibration_rows(
-            rows=[{"correct": 1, "confidence": 0.90}],
-            metadata={"dataset": "MNIST"}
-        )
+def test_build_calibration_rows_rejects_empty_predictions():
+    # ensure calibration evidence cannot be built without predictions
+    with pytest.raises(ValueError, match="empty predictions"):
+        build_calibration_rows([], ece_bins=10)
+
+@pytest.mark.parametrize(
+    ("ece_bins", "fixed_hcer_threshold", "adaptive_hcer_threshold"),
+    [
+        (0, 0.90, 0.80),
+        (10, -0.01, 0.80),
+        (10, 0.90, 1.01)
+    ]
+)
+def test_validate_evaluation_settings_rejects_invalid_values(ece_bins, fixed_hcer_threshold, adaptive_hcer_threshold):
+    # ensure shared reliability settings remain within valid ranges
+    with pytest.raises(ValueError):
+        validate_evaluation_settings(ece_bins, fixed_hcer_threshold, adaptive_hcer_threshold)
 
 def test_save_core_evaluation_outputs_creates_expected_files(tmp_path):
     # confirm the shared evaluation evidence files are saved
@@ -146,3 +160,29 @@ def test_save_core_evaluation_outputs_creates_expected_files(tmp_path):
     assert len(pd.read_csv(paths["predictions"])) == 1
     assert len(pd.read_csv(paths["metrics"])) == 1
     assert len(pd.read_csv(paths["calibration"])) == 1
+
+@pytest.mark.parametrize(
+    ("prediction_rows", "metric_rows", "calibration_rows"),
+    # 3 scenarios where part of required file's data is empty:
+    # Test 1: Missing prediction_rows throws error.
+    # Test 2: Missing metric_rows throws error.
+    # Test 3: Missing calibration_rows hrows error.
+    [
+        ([], [{"accuracy": 1.0}], [{"bin": 9}]),
+        ([{"confidence": 0.9}], [], [{"bin": 9}]),
+        ([{"confidence": 0.9}], [{"accuracy": 1.0}], [])
+    ]
+)
+def test_save_core_evaluation_outputs_rejects_empty_evidence(tmp_path, prediction_rows, metric_rows, calibration_rows):
+    # ensure incomplete evaluation evidence is never saved
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("dataset: Example\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must not be empty"):
+        save_core_evaluation_outputs(
+            prediction_rows=prediction_rows,
+            metric_rows=metric_rows,
+            calibration_rows=calibration_rows,
+            config_path=config_path,
+            output_dir=tmp_path / "results"
+        )
