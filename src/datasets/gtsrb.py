@@ -11,13 +11,18 @@ from src.degradations.image_degradations import apply_degradation
 GTSRB_CLASS_COUNT = 43
 # 64 pixels keeps sign detail without making later model trials unnecessarily heavy
 GTSRB_IMAGE_SIZE = (64, 64)
-# imagenet statistics support later trials with standard pretrained vision models
-GTSRB_NORMALISE = transforms.Normalize(
-    (0.485, 0.456, 0.406),
-    (0.229, 0.224, 0.225)
-)
+# imagenet statistics support standard pretrained vision models
+GTSRB_NORMALISE_MEAN = (0.485, 0.456, 0.406)
+GTSRB_NORMALISE_STD = (0.229, 0.224, 0.225)
+GTSRB_NORMALISE = transforms.Normalize(GTSRB_NORMALISE_MEAN, GTSRB_NORMALISE_STD)
+# smooth resizing with antialiasing so the signs don't get pixelated or distorted
+GTSRB_RESIZE_INTERPOLATION = transforms.InterpolationMode.BILINEAR
+GTSRB_RESIZE_ANTIALIAS = True
+# degrade images while they are still normal 0-1 pixels, before normalising them
+GTSRB_PREPROCESS_ORDER = "resize_degrade_normalise"
+# resize raw images and convert to tensors first, ready for degradation
 GTSRB_PREPROCESS = transforms.Compose([
-    transforms.Resize(GTSRB_IMAGE_SIZE, antialias=True),
+    transforms.Resize(GTSRB_IMAGE_SIZE, interpolation=GTSRB_RESIZE_INTERPOLATION, antialias=GTSRB_RESIZE_ANTIALIAS),
     transforms.ToTensor()
 ])
 

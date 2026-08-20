@@ -7,6 +7,15 @@ import shutil
 import yaml
 SUPPORTED_DEGRADATIONS = {"blur", "noise", "low_light"}
 SUPPORTED_GTSRB_VALIDATION_SPLITS = {"stratified_track"}
+
+SUPPORTED_GTSRB_MODELS = {"GTSRBCNN", "ResNet18", "MobileNetV2"}
+SUPPORTED_GTSRB_PRETRAINED_WEIGHTS = {
+    "GTSRBCNN": {None},
+    "ResNet18": {None, "IMAGENET1K_V1"},
+    "MobileNetV2": {None, "IMAGENET1K_V1"}
+}
+SUPPORTED_GTSRB_TRAINING_STRATEGIES = {"from_scratch", "full_finetune"}
+
 AUGMENTATION_KEYS = (
     "resize",
     "random_crop",
@@ -45,6 +54,28 @@ def _require_number_in_range(value: object, name: str, minimum: float, maximum: 
         raise ValueError(f"{name} must be a number.")
     if not minimum <= value <= maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}.")
+
+def _validate_gtsrb_model_config(model: str, training: dict) -> None:
+    if model not in SUPPORTED_GTSRB_MODELS:
+        raise ValueError("Unsupported GTSRB model.")
+
+    pretrained_weights = training.get("pretrained_weights")
+    if pretrained_weights is not None and not isinstance(pretrained_weights, str):
+        raise ValueError("training.pretrained_weights must be a string or null.")
+    if pretrained_weights not in SUPPORTED_GTSRB_PRETRAINED_WEIGHTS[model]:
+        raise ValueError(f"Unsupported pretrained weights for {model}.")
+
+    training_strategy = training.get("training_strategy")
+    # default to from_scratch so older baseline configs without this key still work
+    if model == "GTSRBCNN" and training_strategy is None:
+        training_strategy = "from_scratch"
+    if training_strategy not in SUPPORTED_GTSRB_TRAINING_STRATEGIES:
+        raise ValueError("training.training_strategy must be from_scratch or full_finetune.")
+    # prevent invalid combinations: random weights cannot be fine-tuned, and pretrained weights must not train from scratch
+    if pretrained_weights is None and training_strategy != "from_scratch":
+        raise ValueError("Models without pretrained weights must use from_scratch training.")
+    if pretrained_weights is not None and training_strategy != "full_finetune":
+        raise ValueError("Pretrained models must use full_finetune training.")
     
 def _validate_trust_thresholds(thresholds: object, name: str, metrics: list[str] | tuple[str, ...]) -> None:
     if not isinstance(thresholds, dict):
@@ -111,7 +142,8 @@ def validate_config(config: dict) -> None:
             raise ValueError(
                 "training.validation_split must be stratified_track for GTSRB."
             )
-
+        _validate_gtsrb_model_config(config["model"], training)
+        
     learning_rate = training.get("learning_rate")
     if learning_rate is not None:
         _require_positive_number(learning_rate, "training.learning_rate")

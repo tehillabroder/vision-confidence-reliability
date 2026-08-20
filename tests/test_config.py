@@ -175,6 +175,37 @@ def test_load_config_rejects_gtsrb_random_split(tmp_path):
 
     with pytest.raises(ValueError, match="stratified_track"):
         load_config(config_path)
+@pytest.mark.parametrize("model", ["ResNet18", "MobileNetV2"])
+def test_load_config_accepts_pretrained_gtsrb_model(tmp_path, model):
+    # confirm stronger GTSRB models can declare reproducible pretraining
+    config = valid_config()
+    config["dataset"] = "GTSRB"
+    config["model"] = model
+    config["training"]["learning_rate"] = 0.001
+    config["training"]["validation_split"] = "stratified_track"
+    config["training"]["pretrained_weights"] = "IMAGENET1K_V1"
+    config["training"]["training_strategy"] = "full_finetune"
+    config_path = write_config(tmp_path, config)
+
+    loaded = load_config(config_path)
+
+    assert loaded["model"] == model
+    assert loaded["training"]["pretrained_weights"] == "IMAGENET1K_V1"
+    assert loaded["training"]["training_strategy"] == "full_finetune"
+
+def test_load_config_rejects_pretrained_model_without_full_finetuning(tmp_path):
+    # pretraining strategy mustn't be recorded inconsistently
+    config = valid_config()
+    config["dataset"] = "GTSRB"
+    config["model"] = "ResNet18"
+    config["training"]["learning_rate"] = 0.001
+    config["training"]["validation_split"] = "stratified_track"
+    config["training"]["pretrained_weights"] = "IMAGENET1K_V1"
+    config["training"]["training_strategy"] = "from_scratch"
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="must use full_finetune"):
+        load_config(config_path)
 
 def test_load_config_accepts_selected_trust_metrics(tmp_path):
     # confirm a dataset can exclude an audited metric from its trust policy

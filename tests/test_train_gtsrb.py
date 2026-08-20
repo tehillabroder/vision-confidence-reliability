@@ -77,6 +77,8 @@ def test_build_checkpoint_metadata_records_track_split():
             "epochs": 10,
             "batch_size": 64,
             "learning_rate": 0.001,
+            "pretrained_weights": None,
+            "training_strategy": "from_scratch",
             "validation_size": 4000,
             "validation_split": "stratified_track",
             "augmentation": {
@@ -114,3 +116,11 @@ def test_build_checkpoint_metadata_records_track_split():
     assert metadata["track_overlap"] == 0
     assert metadata["validation_track_hash"] == "a" * 64
     assert metadata["split_metadata"] == split_metadata
+    assert metadata["pretrained_weights"] is None
+    assert metadata["training_strategy"] == "from_scratch"
+    assert metadata["image_size"] == (64, 64)
+    assert metadata["normalisation_mean"] == [0.485, 0.456, 0.406]
+    assert metadata["normalisation_std"] == [0.229, 0.224, 0.225]
+    assert metadata["preprocessing_order"] == "resize_degrade_normalise"
+    assert metadata["resize_interpolation"] == "bilinear"
+    assert metadata["resize_antialias"] is True

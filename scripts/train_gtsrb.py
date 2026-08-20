@@ -9,10 +9,13 @@ import torch.nn as nn
 
 from sklearn.metrics import balanced_accuracy_score
 from torch.utils.data import DataLoader
-from src.datasets.gtsrb import GTSRB_CLASS_COUNT, GTSRB_IMAGE_SIZE, build_gtsrb_train_validation_split
+from src.datasets.gtsrb import (
+    GTSRB_CLASS_COUNT, GTSRB_IMAGE_SIZE, GTSRB_NORMALISE_MEAN, GTSRB_NORMALISE_STD, 
+    GTSRB_PREPROCESS_ORDER, GTSRB_RESIZE_ANTIALIAS, GTSRB_RESIZE_INTERPOLATION, build_gtsrb_train_validation_split
+)
 from src.datasets.gtsrb_split import validate_gtsrb_split_metadata
 from src.models.checkpoints import save_model_checkpoint
-from src.models.gtsrb_cnn import GTSRBCNN
+from src.models.gtsrb_models import build_gtsrb_model
 from src.utils.config import load_config, save_config_copy
 from src.utils.seeds import set_seed
 
@@ -98,6 +101,8 @@ def build_checkpoint_metadata(
         "epochs": training_config["epochs"],
         "batch_size": training_config["batch_size"],
         "learning_rate": training_config["learning_rate"],
+        "pretrained_weights": training_config.get("pretrained_weights"),
+        "training_strategy": training_config.get("training_strategy", "from_scratch"),
         "validation_split": split_metadata["validation_split"],
         "requested_validation_size": split_metadata[
             "requested_validation_size"
@@ -108,6 +113,11 @@ def build_checkpoint_metadata(
         "validation_balanced_accuracy": validation_balanced_accuracy,
         "class_count": GTSRB_CLASS_COUNT,
         "image_size": GTSRB_IMAGE_SIZE,
+        "normalisation_mean": list(GTSRB_NORMALISE_MEAN),
+        "normalisation_std": list(GTSRB_NORMALISE_STD),
+        "preprocessing_order": GTSRB_PREPROCESS_ORDER,
+        "resize_interpolation": GTSRB_RESIZE_INTERPOLATION.value,
+        "resize_antialias": GTSRB_RESIZE_ANTIALIAS,
         "track_overlap": split_metadata["track_overlap"],
         "validation_track_hash": split_metadata[
             "validation_track_hash"
@@ -126,14 +136,14 @@ def select_device() -> torch.device:
     return torch.device("cpu")
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train the GTSRB baseline CNN checkpoint")
+    parser = argparse.ArgumentParser(description="Train a GTSRB model checkpoint")
     parser.add_argument("--config", default="configs/gtsrb.yaml")
     args = parser.parse_args()
 
     config_path = Path(args.config)
     config = load_config(config_path)
-    if config["dataset"] != "GTSRB" or config["model"] != "GTSRBCNN":
-        raise ValueError("GTSRB training requires dataset GTSRB and model GTSRBCNN.")
+    if config["dataset"] != "GTSRB":
+        raise ValueError("GTSRB training requires dataset GTSRB.")
 
     training_config = config["training"]
     set_seed(config["seed"])
@@ -162,6 +172,9 @@ def main() -> None:
 
     device = select_device()
     print(f"Using device: {device}")
+    print(f"Model: {config['model']}")
+    print(f"Pretrained weights: {training_config.get('pretrained_weights') or 'none'}")
+    print(f"Training strategy: {training_config.get('training_strategy', 'from_scratch')}")
     print(f"Training examples: {len(train_set)}")
     print(
         "Requested validation examples: "
@@ -174,7 +187,7 @@ def main() -> None:
     )
     print(f"Track overlap: {split_metadata['track_overlap']}")
 
-    model = GTSRBCNN(num_classes=GTSRB_CLASS_COUNT).to(device)
+    model = build_gtsrb_model(config["model"], num_classes=GTSRB_CLASS_COUNT, pretrained_weights=training_config.get("pretrained_weights")).to(device)
     train_model(
         model=model,
         loader=train_loader,
