@@ -6,7 +6,10 @@ import pytest
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset
-from experiments.gtsrb_degradation_eval import evaluate_condition, load_validation_profile, save_evaluation_outputs, summarise_condition, validate_evaluation_sources
+from experiments.gtsrb_degradation_eval import (
+    evaluate_condition, load_evaluation_model, load_validation_profile, 
+    save_evaluation_outputs, summarise_condition, validate_evaluation_sources
+) 
 from src.evaluation.runner import build_experiment_conditions
 
 class StaticModel(nn.Module):
@@ -69,6 +72,38 @@ def valid_profile() -> dict:
         "rank_hcer_top_fraction": 0.10
     }
 
+def test_load_evaluation_model_builds_configured_architecture(monkeypatch, tmp_path):
+    # confirm evaluation rebuilds the configured model without downloading pretrained weights
+    captured = {}
+    model = nn.Linear(1, 1)
+
+    def fake_model_builder(model_name, num_classes, pretrained_weights):
+        captured["model_name"] = model_name
+        captured["num_classes"] = num_classes
+        captured["pretrained_weights"] = pretrained_weights
+        return model
+
+    def fake_checkpoint_loader(loaded_model, checkpoint_path, device):
+        assert loaded_model is model
+        captured["checkpoint_path"] = checkpoint_path
+        captured["device"] = device
+        return {"model": "ResNet18"}
+
+    monkeypatch.setattr("experiments.gtsrb_degradation_eval.build_gtsrb_model", fake_model_builder)
+    monkeypatch.setattr("experiments.gtsrb_degradation_eval.load_model_checkpoint", fake_checkpoint_loader)
+
+    checkpoint_path = tmp_path / "gtsrb_resnet18.pt"
+    loaded_model, metadata = load_evaluation_model(checkpoint_path, torch.device("cpu"), "ResNet18")
+
+    assert loaded_model is model
+    assert metadata == {"model": "ResNet18"}
+    assert captured["model_name"] == "ResNet18"
+    assert captured["num_classes"] == 43
+    assert captured["pretrained_weights"] is None
+    assert captured["checkpoint_path"] == checkpoint_path
+    assert captured["device"] == torch.device("cpu")
+    assert not loaded_model.training
+
 def test_build_experiment_conditions_includes_undegraded_baseline():
     # confirm the undegraded condition appears once before degraded conditions
     conditions = build_experiment_conditions(
@@ -106,6 +141,7 @@ def test_evaluate_condition_returns_prediction_rows(monkeypatch):
     rows = evaluate_condition(
         model=model,
         device=torch.device("cpu"),
+        model_name="ResNet18",
         data_dir="data",
         batch_size=4,
         degradation="noise",
@@ -117,7 +153,7 @@ def test_evaluate_condition_returns_prediction_rows(monkeypatch):
     assert [row["correct"] for row in rows] == [1, 0, 1, 0]
     assert [row["image_id"] for row in rows] == [10, 11, 12, 13]
     assert all(row["dataset"] == "GTSRB" for row in rows)
-    assert all(row["model"] == "GTSRBCNN" for row in rows)
+    assert all(row["model"] == "ResNet18" for row in rows)
     assert all(0 <= row["confidence"] <= 1 for row in rows)
     assert captured == {
         "data_dir": "data",
@@ -143,6 +179,7 @@ def test_evaluate_condition_respects_batch_limit(monkeypatch):
     rows = evaluate_condition(
         model=model,
         device=torch.device("cpu"),
+        model_name="GTSRBCNN",
         data_dir="data",
         batch_size=2,
         degradation="none",
@@ -173,6 +210,7 @@ def test_evaluate_condition_rejects_empty_dataset(monkeypatch):
         evaluate_condition(
             model=model,
             device=torch.device("cpu"),
+            model_name="GTSRBCNN",
             data_dir="data",
             batch_size=2,
             degradation="none",

@@ -4,7 +4,7 @@ import pytest
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from scripts.build_gtsrb_validation_profile import build_gtsrb_validation_profile, collect_gtsrb_validation_outputs, validate_checkpoint_metadata
+from scripts.build_gtsrb_validation_profile import build_gtsrb_validation_profile, collect_gtsrb_validation_outputs, load_validation_model, validate_checkpoint_metadata
 
 class StaticModel(nn.Module):
     """Return fixed class predictions."""
@@ -79,6 +79,38 @@ def valid_metadata() -> dict:
         "split_metadata": split_metadata
     }
 
+def test_load_validation_model_builds_configured_architecture(monkeypatch, tmp_path):
+    # confirm validation rebuilds the configured model without downloading pretrained weights
+    captured = {}
+    model = nn.Linear(1, 1)
+
+    def fake_model_builder(model_name, num_classes, pretrained_weights):
+        captured["model_name"] = model_name
+        captured["num_classes"] = num_classes
+        captured["pretrained_weights"] = pretrained_weights
+        return model
+
+    def fake_checkpoint_loader(loaded_model, checkpoint_path, device):
+        assert loaded_model is model
+        captured["checkpoint_path"] = checkpoint_path
+        captured["device"] = device
+        return {"model": "ResNet18"}
+
+    monkeypatch.setattr("scripts.build_gtsrb_validation_profile.build_gtsrb_model", fake_model_builder)
+    monkeypatch.setattr("scripts.build_gtsrb_validation_profile.load_model_checkpoint", fake_checkpoint_loader)
+
+    checkpoint_path = tmp_path / "gtsrb_resnet18.pt"
+    loaded_model, metadata = load_validation_model(checkpoint_path, torch.device("cpu"), "ResNet18")
+
+    assert loaded_model is model
+    assert metadata == {"model": "ResNet18"}
+    assert captured["model_name"] == "ResNet18"
+    assert captured["num_classes"] == 43
+    assert captured["pretrained_weights"] is None
+    assert captured["checkpoint_path"] == checkpoint_path
+    assert captured["device"] == torch.device("cpu")
+    assert not loaded_model.training
+
 def test_collect_gtsrb_validation_outputs_returns_expected_values():
     # confirm labels, predictions and correctness are retained
     images = torch.zeros(4, 3, 8, 8)
@@ -151,6 +183,15 @@ def test_validate_checkpoint_metadata_accepts_matching_split():
         valid_config(),
         valid_split_metadata()
     )
+
+def test_validate_checkpoint_metadata_accepts_resnet18():
+    # confirm the same checkpoint checks work for the selected stronger model
+    config = valid_config()
+    config["model"] = "ResNet18"
+    metadata = valid_metadata()
+    metadata["model"] = "ResNet18"
+
+    validate_checkpoint_metadata(metadata, config, valid_split_metadata())
 
 def test_validate_checkpoint_metadata_rejects_split_hash_mismatch():
     # ensure a profile cannot use a checkpoint from different tracks

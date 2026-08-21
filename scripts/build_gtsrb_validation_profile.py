@@ -14,7 +14,7 @@ from src.datasets.gtsrb_split import validate_gtsrb_split_metadata
 from src.evaluation.validation_profile import build_validation_profile, save_validation_profile
 from src.metrics.reliability import high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
-from src.models.gtsrb_cnn import GTSRBCNN
+from src.models.gtsrb_models import build_gtsrb_model
 from src.utils.config import load_config
 from src.utils.seeds import set_seed
 
@@ -47,6 +47,14 @@ def collect_gtsrb_validation_outputs(
         raise ValueError("Validation loader produced no examples.")
 
     return correct, true_labels, predicted_labels, confidences
+
+def load_validation_model(checkpoint_path: Path, device: torch.device, model_name: str) -> tuple[nn.Module, dict]:
+    """Load one saved GTSRB model for validation."""
+    # the fine-tuned checkpoint already contains every parameter, so don't download ImageNet weights again
+    model = build_gtsrb_model(model_name=model_name, num_classes=GTSRB_CLASS_COUNT, pretrained_weights=None).to(device)
+    metadata = load_model_checkpoint(model, checkpoint_path, device)
+    model.eval()
+    return model, metadata
 
 def build_gtsrb_validation_profile(
     dataset: str,
@@ -161,8 +169,8 @@ def main() -> None:
 
     config_path = Path(args.config)
     config = load_config(config_path)
-    if config["dataset"] != "GTSRB" or config["model"] != "GTSRBCNN":
-        raise ValueError("GTSRB validation requires dataset GTSRB and model GTSRBCNN.")
+    if config["dataset"] != "GTSRB":
+        raise ValueError("GTSRB validation requires dataset GTSRB.")
 
     training_config = config["training"]
     evaluation_config = config["evaluation"]
@@ -184,8 +192,7 @@ def main() -> None:
 
     device = select_device()
     checkpoint_path = Path(config["checkpoint"])
-    model = GTSRBCNN(num_classes=GTSRB_CLASS_COUNT).to(device)
-    metadata = load_model_checkpoint(model, checkpoint_path, device)
+    model, metadata = load_validation_model(checkpoint_path, device, config["model"])
     # reject mismatched checkpoints before producing an invalid reference profile
     validate_checkpoint_metadata(metadata, config, split_metadata)
 

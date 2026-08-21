@@ -13,7 +13,7 @@ from src.evaluation.runner import build_calibration_rows, build_experiment_condi
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
 from src.metrics.reliability import expected_calibration_error, high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
-from src.models.gtsrb_cnn import GTSRBCNN
+from src.models.gtsrb_models import build_gtsrb_model
 from src.utils.config import load_config
 from src.datasets.gtsrb_split import validate_gtsrb_split_metadata
 from src.utils.seeds import set_seed
@@ -136,6 +136,7 @@ def validate_evaluation_sources(
 def evaluate_condition(
     model: nn.Module,
     device: torch.device,
+    model_name: str,
     data_dir: str,
     batch_size: int,
     degradation: str,
@@ -154,7 +155,7 @@ def evaluate_condition(
         loader=loader,
         device=device,
         dataset_name="GTSRB",
-        model_name="GTSRBCNN",
+        model_name=model_name,
         degradation=degradation,
         severity=severity,
         seed=seed,
@@ -249,10 +250,11 @@ def save_evaluation_outputs(
 
 def load_evaluation_model(
     checkpoint_path: Path,
-    device: torch.device
+    device: torch.device,
+    model_name: str
 ) -> tuple[nn.Module, dict]:
     """Load the saved GTSRB baseline model."""
-    model = GTSRBCNN(num_classes=GTSRB_CLASS_COUNT).to(device)
+    model = build_gtsrb_model(model_name=model_name, num_classes=GTSRB_CLASS_COUNT, pretrained_weights=None).to(device)
     metadata = load_model_checkpoint(model, checkpoint_path, device)
     model.eval()
     return model, metadata
@@ -264,8 +266,8 @@ def main() -> None:
 
     config_path = Path(args.config)
     config = load_config(config_path)
-    if config["dataset"] != "GTSRB" or config["model"] != "GTSRBCNN":
-        raise ValueError("GTSRB evaluation requires dataset GTSRB and model GTSRBCNN.")
+    if config["dataset"] != "GTSRB":
+        raise ValueError("GTSRB evaluation requires dataset GTSRB.")
 
     evaluation_config = config["evaluation"]
     profile = load_validation_profile(
@@ -277,7 +279,8 @@ def main() -> None:
     device = select_device()
     model, metadata = load_evaluation_model(
         Path(config["checkpoint"]),
-        device
+        device, 
+        config["model"]
     )
     split_metadata = validate_evaluation_sources(metadata, profile, config)
 
@@ -307,6 +310,7 @@ def main() -> None:
             model=model,
             device=device,
             data_dir=config["data_dir"],
+            model_name=config["model"],
             batch_size=evaluation_config["batch_size"],
             degradation=degradation,
             severity=severity,
