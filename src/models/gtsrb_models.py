@@ -5,20 +5,25 @@ import torch.nn as nn
 from torchvision.models import MobileNet_V2_Weights, ResNet18_Weights, mobilenet_v2, resnet18
 from src.models.gtsrb_cnn import GTSRBCNN
 
-RESNET18_WEIGHTS = {"IMAGENET1K_V1": ResNet18_Weights.IMAGENET1K_V1}
-MOBILENET_V2_WEIGHTS = {"IMAGENET1K_V1": MobileNet_V2_Weights.IMAGENET1K_V1}
+GTSRB_PRETRAINED_WEIGHTS = {
+    "GTSRBCNN": {},
+    "ResNet18": {"IMAGENET1K_V1": ResNet18_Weights.IMAGENET1K_V1},
+    "MobileNetV2": {"IMAGENET1K_V1": MobileNet_V2_Weights.IMAGENET1K_V1}
+}
+SUPPORTED_GTSRB_MODELS = frozenset(GTSRB_PRETRAINED_WEIGHTS)
+
+def get_supported_gtsrb_pretrained_weights(model_name: str) -> set[str | None]:
+    if model_name not in SUPPORTED_GTSRB_MODELS:
+        raise ValueError(f"Unsupported GTSRB model: {model_name}")
+    return {None} | set(GTSRB_PRETRAINED_WEIGHTS[model_name])
 
 def _resolve_pretrained_weights(model_name: str, pretrained_weights: str | None):
+    if model_name not in SUPPORTED_GTSRB_MODELS:
+        raise ValueError(f"Unsupported GTSRB model: {model_name}")
     if pretrained_weights is None:
         return None
 
-    if model_name == "ResNet18":
-        options = RESNET18_WEIGHTS
-    elif model_name == "MobileNetV2":
-        options = MOBILENET_V2_WEIGHTS
-    else:
-        raise ValueError(f"{model_name} does not support pretrained weights.")
-
+    options = GTSRB_PRETRAINED_WEIGHTS[model_name]
     if pretrained_weights not in options:
         raise ValueError(f"Unsupported pretrained weights for {model_name}: {pretrained_weights}")
 

@@ -1,6 +1,7 @@
 """Save and load model checkpoints."""
 
 from pathlib import Path
+from collections.abc import Mapping
 import torch
 import torch.nn as nn
 
@@ -23,10 +24,16 @@ def load_model_checkpoint(model: nn.Module, checkpoint_path: Path, device: torch
     if "model_state_dict" not in checkpoint:
         raise ValueError("Checkpoint does not contain model_state_dict.")
 
+    model_state_dict = checkpoint["model_state_dict"]
+    if not isinstance(model_state_dict, Mapping):
+        raise ValueError("Checkpoint model_state_dict must be a mapping.")
+
+    metadata = checkpoint.get("metadata", {})
+
     metadata = checkpoint.get("metadata", {})
 
     if not isinstance(metadata, dict):
         raise ValueError("Checkpoint metadata must be a dictionary.")
 
-    model.load_state_dict(checkpoint["model_state_dict"])
+    model.load_state_dict(model_state_dict)
     return metadata

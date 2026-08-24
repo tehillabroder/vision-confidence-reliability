@@ -1,4 +1,4 @@
-"""Train and save the GTSRB baseline model."""
+"""Train and save a GTSRB model checkpoint."""
 
 import argparse
 from pathlib import Path

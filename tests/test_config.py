@@ -1,5 +1,6 @@
 """Tests for experiment configuration."""
 
+from __future__ import annotations
 from pathlib import Path
 
 import pytest
@@ -59,6 +60,21 @@ def valid_config() -> dict:
             }
         }
     }
+
+def valid_gtsrb_config(
+    model: str = "GTSRBCNN",
+    pretrained_weights: str | None = None,
+    training_strategy: str = "from_scratch"
+) -> dict:
+    config = valid_config()
+    config["dataset"] = "GTSRB"
+    config["model"] = model
+    config["training"]["learning_rate"] = 0.001
+    config["training"]["validation_split"] = "stratified_track"
+    config["training"]["pretrained_weights"] = pretrained_weights
+    config["training"]["training_strategy"] = training_strategy
+    config["evaluation"]["rank_hcer_top_fraction"] = 0.10
+    return config
 
 def write_config(tmp_path: Path, config: dict) -> Path:
     config_path = tmp_path / "config.yaml"
@@ -153,11 +169,7 @@ def test_load_config_rejects_invalid_learning_rate(tmp_path):
 
 def test_load_config_accepts_gtsrb_track_split(tmp_path):
     # confirm the supported GTSRB track strategy loads successfully
-    config = valid_config()
-    config["dataset"] = "GTSRB"
-    config["model"] = "GTSRBCNN"
-    config["training"]["learning_rate"] = 0.001
-    config["training"]["validation_split"] = "stratified_track"
+    config = valid_gtsrb_config()
     config_path = write_config(tmp_path, config)
 
     loaded = load_config(config_path)
@@ -166,27 +178,21 @@ def test_load_config_accepts_gtsrb_track_split(tmp_path):
 
 def test_load_config_rejects_gtsrb_random_split(tmp_path):
     # ensure GTSRB cannot return to image-level random splitting
-    config = valid_config()
-    config["dataset"] = "GTSRB"
-    config["model"] = "GTSRBCNN"
-    config["training"]["learning_rate"] = 0.001
+    config = valid_gtsrb_config()
     config["training"]["validation_split"] = "random"
     config_path = write_config(tmp_path, config)
-
     with pytest.raises(ValueError, match="stratified_track"):
         load_config(config_path)
+
 @pytest.mark.parametrize("model", ["ResNet18", "MobileNetV2"])
 def test_load_config_accepts_pretrained_gtsrb_model(tmp_path, model):
     # confirm stronger GTSRB models can declare reproducible pretraining
-    config = valid_config()
-    config["dataset"] = "GTSRB"
-    config["model"] = model
-    config["training"]["learning_rate"] = 0.001
-    config["training"]["validation_split"] = "stratified_track"
-    config["training"]["pretrained_weights"] = "IMAGENET1K_V1"
-    config["training"]["training_strategy"] = "full_finetune"
+    config = valid_gtsrb_config(
+        model=model,
+        pretrained_weights="IMAGENET1K_V1",
+        training_strategy="full_finetune"
+    )
     config_path = write_config(tmp_path, config)
-
     loaded = load_config(config_path)
 
     assert loaded["model"] == model
@@ -195,13 +201,11 @@ def test_load_config_accepts_pretrained_gtsrb_model(tmp_path, model):
 
 def test_load_config_rejects_pretrained_model_without_full_finetuning(tmp_path):
     # pretraining strategy mustn't be recorded inconsistently
-    config = valid_config()
-    config["dataset"] = "GTSRB"
-    config["model"] = "ResNet18"
-    config["training"]["learning_rate"] = 0.001
-    config["training"]["validation_split"] = "stratified_track"
-    config["training"]["pretrained_weights"] = "IMAGENET1K_V1"
-    config["training"]["training_strategy"] = "from_scratch"
+    config = valid_gtsrb_config(
+        model="ResNet18",
+        pretrained_weights="IMAGENET1K_V1",
+        training_strategy="from_scratch"
+    )
     config_path = write_config(tmp_path, config)
 
     with pytest.raises(ValueError, match="must use full_finetune"):
@@ -232,4 +236,44 @@ def test_load_config_rejects_unsupported_trust_metric(tmp_path):
     config_path = write_config(tmp_path, config)
 
     with pytest.raises(ValueError, match="unsupported metric"):
+        load_config(config_path)
+
+def test_load_config_rejects_unknown_dataset(tmp_path):
+    # ensure unsupported datasets fail before an experiment starts
+    config = valid_config()
+    config["dataset"] = "UnknownDataset"
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="Unsupported dataset"):
+        load_config(config_path)
+
+def test_load_config_rejects_model_for_wrong_dataset(tmp_path):
+    # ensure a valid model name cannot be used with the wrong dataset
+    config = valid_config()
+    config["model"] = "ResNet18"
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="Unsupported model for MNIST"):
+        load_config(config_path)
+
+def test_load_config_rejects_unknown_gtsrb_pretrained_weights(tmp_path):
+    # ensure config and model construction accept the same weight names
+    config = valid_gtsrb_config(
+        model="ResNet18",
+        pretrained_weights="DEFAULT",
+        training_strategy="full_finetune"
+    )
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="Unsupported pretrained weights"):
+        load_config(config_path)
+
+@pytest.mark.parametrize("rank_fraction", [0, 1.1])
+def test_load_config_rejects_invalid_rank_hcer_fraction(tmp_path, rank_fraction):
+    # ensure the configured rank is a valid fraction
+    config = valid_gtsrb_config()
+    config["evaluation"]["rank_hcer_top_fraction"] = rank_fraction
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="rank_hcer_top_fraction"):
         load_config(config_path)

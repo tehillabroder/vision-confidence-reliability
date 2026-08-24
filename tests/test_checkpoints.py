@@ -38,3 +38,30 @@ def test_checkpoint_loader_rejects_missing_file(tmp_path):
             tmp_path / "missing.pt",
             torch.device("cpu")
         )
+
+def test_checkpoint_loader_rejects_missing_model_state(tmp_path):
+    # ensure a file without model weights cannot be treated as a checkpoint
+    checkpoint_path = tmp_path / "invalid.pt"
+    torch.save({"metadata": {}}, checkpoint_path)
+
+    with pytest.raises(ValueError, match="model_state_dict"):
+        load_model_checkpoint(SimpleCNN(), checkpoint_path, torch.device("cpu"))
+
+def test_checkpoint_loader_rejects_invalid_model_state(tmp_path):
+    # ensure incorrectly formed model weights fail with a clear checkpoint error
+    checkpoint_path = tmp_path / "invalid.pt"
+    torch.save({"model_state_dict": [], "metadata": {}}, checkpoint_path)
+
+    with pytest.raises(ValueError, match="must be a mapping"):
+        load_model_checkpoint(SimpleCNN(), checkpoint_path, torch.device("cpu"))
+
+def test_checkpoint_loader_rejects_invalid_metadata(tmp_path):
+    # makes sure that checkpoint metadata remains structured evidence
+    checkpoint_path = tmp_path / "invalid.pt"
+    torch.save({
+        "model_state_dict": SimpleCNN().state_dict(),
+        "metadata": []
+    }, checkpoint_path)
+
+    with pytest.raises(ValueError, match="metadata must be a dictionary"):
+        load_model_checkpoint(SimpleCNN(), checkpoint_path, torch.device("cpu"))

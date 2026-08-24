@@ -3,18 +3,16 @@
 from __future__ import annotations
 from pathlib import Path
 import shutil
-
 import yaml
+from src.models.gtsrb_models import SUPPORTED_GTSRB_MODELS, get_supported_gtsrb_pretrained_weights
+
 SUPPORTED_DEGRADATIONS = {"blur", "noise", "low_light"}
 SUPPORTED_GTSRB_VALIDATION_SPLITS = {"stratified_track"}
-
-SUPPORTED_GTSRB_MODELS = {"GTSRBCNN", "ResNet18", "MobileNetV2"}
-SUPPORTED_GTSRB_PRETRAINED_WEIGHTS = {
-    "GTSRBCNN": {None},
-    "ResNet18": {None, "IMAGENET1K_V1"},
-    "MobileNetV2": {None, "IMAGENET1K_V1"}
-}
 SUPPORTED_GTSRB_TRAINING_STRATEGIES = {"from_scratch", "full_finetune"}
+SUPPORTED_DATASET_MODELS = {
+    "MNIST": {"SimpleCNN"},
+    "GTSRB": SUPPORTED_GTSRB_MODELS
+}
 
 AUGMENTATION_KEYS = (
     "resize",
@@ -56,13 +54,11 @@ def _require_number_in_range(value: object, name: str, minimum: float, maximum: 
         raise ValueError(f"{name} must be between {minimum} and {maximum}.")
 
 def _validate_gtsrb_model_config(model: str, training: dict) -> None:
-    if model not in SUPPORTED_GTSRB_MODELS:
-        raise ValueError("Unsupported GTSRB model.")
 
     pretrained_weights = training.get("pretrained_weights")
     if pretrained_weights is not None and not isinstance(pretrained_weights, str):
         raise ValueError("training.pretrained_weights must be a string or null.")
-    if pretrained_weights not in SUPPORTED_GTSRB_PRETRAINED_WEIGHTS[model]:
+    if pretrained_weights not in get_supported_gtsrb_pretrained_weights(model):
         raise ValueError(f"Unsupported pretrained weights for {model}.")
 
     training_strategy = training.get("training_strategy")
@@ -117,6 +113,14 @@ def validate_config(config: dict) -> None:
     for key in ("dataset", "model", "data_dir", "checkpoint", "output_dir", "validation_profile"):
         _require_non_empty_string(config.get(key), key)
 
+    dataset = config["dataset"]
+    model = config["model"]
+
+    if dataset not in SUPPORTED_DATASET_MODELS:
+        raise ValueError(f"Unsupported dataset: {dataset}.")
+    if model not in SUPPORTED_DATASET_MODELS[dataset]:
+        raise ValueError(f"Unsupported model for {dataset}: {model}.")
+
     seed = config.get("seed")
     if isinstance(seed, bool) or not isinstance(seed, int):
         raise ValueError("seed must be an integer.")
@@ -170,6 +174,15 @@ def validate_config(config: dict) -> None:
         0.0,
         100.0
     )
+
+    if config["dataset"] == "GTSRB":
+        rank_fraction = evaluation.get("rank_hcer_top_fraction")
+        if (
+            isinstance(rank_fraction, bool)
+            or not isinstance(rank_fraction, (int, float))
+            or not 0 < rank_fraction <= 1
+        ):
+            raise ValueError("evaluation.rank_hcer_top_fraction must be greater than 0 and no greater than 1.")
 
     degradations = evaluation.get("degradations")
     if not isinstance(degradations, list) or not degradations:
