@@ -50,7 +50,7 @@ def main() -> None:
     model = SimpleCNN().to(device)
     load_model_checkpoint(model, checkpoint_path, device)
 
-    correct, confidences = collect_validation_predictions(
+    correct, _, _, confidences = collect_validation_predictions(
         model,
         validation_loader,
         device

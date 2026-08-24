@@ -10,6 +10,7 @@ from sklearn.metrics import balanced_accuracy_score
 from torch.utils.data import DataLoader
 from src.datasets.gtsrb import GTSRB_CLASS_COUNT, build_gtsrb_test_dataset
 from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs, validate_evaluation_settings
+from src.evaluation.validation_profile import load_validation_profile, validate_validation_profile_source
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
 from src.metrics.reliability import expected_calibration_error, high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
@@ -25,35 +26,22 @@ def select_device() -> torch.device:
         return torch.device("mps")
     return torch.device("cpu")
 
-def load_validation_profile(profile_path: Path, config: dict) -> dict:
-    """Load and validate the undegraded validation profile."""
-    if not profile_path.exists():
-        raise FileNotFoundError(f"Validation profile not found: {profile_path}")
+def validate_gtsrb_validation_profile(profile: dict, config: dict) -> dict[str, object]:
+    """Validate GTSRB-specific validation profile evidence."""
+    evaluation_config = config["evaluation"]
 
-    try:
-        profile = json.loads(profile_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        raise ValueError(f"Invalid validation profile JSON: {profile_path}") from error
+    validate_validation_profile_source(
+        profile=profile,
+        dataset=config["dataset"],
+        model=config["model"],
+        checkpoint=config["checkpoint"],
+        seed=config["seed"],
+        fixed_hcer_threshold=evaluation_config["fixed_hcer_threshold"],
+        adaptive_hcer_percentile=evaluation_config["adaptive_hcer_percentile"]
+    )
 
-    if not isinstance(profile, dict):
-        raise ValueError("Validation profile must contain a mapping.")
-
-    expected_values = {
-        "dataset": config["dataset"],
-        "model": config["model"],
-        "checkpoint": config["checkpoint"],
-        "seed": config["seed"],
-        "fixed_hcer_threshold": config["evaluation"]["fixed_hcer_threshold"],
-        "adaptive_hcer_percentile": config["evaluation"]["adaptive_hcer_percentile"],
-        "rank_hcer_top_fraction": config["evaluation"]["rank_hcer_top_fraction"]
-    }
-
-    for name, expected_value in expected_values.items():
-        if profile.get(name) != expected_value:
-            raise ValueError(f"Validation profile {name} does not match the GTSRB configuration.")
-
-    if profile.get("degradation") != "none" or profile.get("severity") != 0:
-        raise ValueError("Validation profile must describe the undegraded condition.")
+    if profile.get("rank_hcer_top_fraction") != evaluation_config["rank_hcer_top_fraction"]:
+        raise ValueError("Validation profile rank_hcer_top_fraction does not match the GTSRB configuration.")
 
     training_config = config["training"]
     split_metadata = validate_gtsrb_split_metadata(
@@ -76,31 +64,17 @@ def load_validation_profile(profile_path: Path, config: dict) -> dict:
         if profile.get(name) != expected_value:
             raise ValueError(f"Validation profile {name} does not match its split metadata.")
 
-    adaptive_threshold = profile.get("adaptive_hcer_threshold")
-    if (
-        isinstance(adaptive_threshold, bool)
-        or not isinstance(adaptive_threshold, (int, float))
-        or not 0 <= adaptive_threshold <= 1
-    ):
-        raise ValueError("Validation profile adaptive_hcer_threshold must be between 0 and 1.")
-
-    return profile
+    return split_metadata
 
 def validate_evaluation_sources(
     metadata: dict,
-    profile: dict,
+    profile_split: dict[str, object],
     config: dict
 ) -> dict[str, object]:
     """Check that checkpoint and profile share one track split."""
     training_config = config["training"]
     checkpoint_split = validate_gtsrb_split_metadata(
         metadata=metadata.get("split_metadata"),
-        validation_split=training_config["validation_split"],
-        requested_validation_size=training_config["validation_size"],
-        class_count=GTSRB_CLASS_COUNT
-    )
-    profile_split = validate_gtsrb_split_metadata(
-        metadata=profile.get("split_metadata"),
         validation_split=training_config["validation_split"],
         requested_validation_size=training_config["validation_size"],
         class_count=GTSRB_CLASS_COUNT
@@ -253,7 +227,8 @@ def load_evaluation_model(
     device: torch.device,
     model_name: str
 ) -> tuple[nn.Module, dict]:
-    """Load the saved GTSRB baseline model."""
+    """Load one saved GTSRB model for evaluation."""
+    
     model = build_gtsrb_model(model_name=model_name, num_classes=GTSRB_CLASS_COUNT, pretrained_weights=None).to(device)
     metadata = load_model_checkpoint(model, checkpoint_path, device)
     model.eval()
@@ -270,10 +245,10 @@ def main() -> None:
         raise ValueError("GTSRB evaluation requires dataset GTSRB.")
 
     evaluation_config = config["evaluation"]
-    profile = load_validation_profile(
-        Path(config["validation_profile"]),
-        config
-    )
+
+    profile = load_validation_profile(Path(config["validation_profile"]))
+    profile_split = validate_gtsrb_validation_profile(profile, config)
+
     validate_evaluation_settings(evaluation_config["ece_bins"], evaluation_config["fixed_hcer_threshold"], profile["adaptive_hcer_threshold"])
 
     device = select_device()
@@ -282,7 +257,7 @@ def main() -> None:
         device, 
         config["model"]
     )
-    split_metadata = validate_evaluation_sources(metadata, profile, config)
+    split_metadata = validate_evaluation_sources(metadata, profile_split, config)
 
     print(f"Using device: {device}")
     if "validation_accuracy" in metadata:

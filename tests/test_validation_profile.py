@@ -1,7 +1,6 @@
 """Tests for the validation reference profile."""
 
 import json
-
 import pytest
 import torch
 import torch.nn as nn
@@ -17,7 +16,6 @@ from src.evaluation.validation_profile import (
 
 class CountingModel(nn.Module):
     """Small model used to count validation calls."""
-
     def __init__(self) -> None:
         super().__init__()
         self.calls = 0
@@ -62,14 +60,14 @@ def test_calculate_adaptive_threshold_rejects_empty_confidences():
         calculate_adaptive_threshold([], percentile=90)
 
 def test_collect_validation_predictions_runs_model_once_per_batch():
-    # confirm validation uses one inference call for each batch
+    # confirm validation retains the evidence needed by different datasets
     model = CountingModel()
     loader = [(
         torch.zeros((2, 1, 28, 28)),
         torch.tensor([0, 1])
     )]
 
-    correct, confidences = collect_validation_predictions(
+    correct, true_labels, predicted_labels, confidences = collect_validation_predictions(
         model,
         loader,
         torch.device("cpu")
@@ -77,7 +75,40 @@ def test_collect_validation_predictions_runs_model_once_per_batch():
 
     assert model.calls == 1
     assert correct == [1, 0]
+    assert true_labels == [0, 1]
+    assert predicted_labels == [0, 0]
     assert len(confidences) == 2
+
+def test_collect_validation_predictions_accepts_optional_image_ids():
+    # GTSRB returns 3-item batches (images, labels, image_ids) instead of the 2-item (images, labels)
+    # ensure the shared prediction collector handles the extra item gracefully
+    model = CountingModel()
+    loader = [(
+        torch.zeros((2, 1, 28, 28)),
+        torch.tensor([0, 1]),
+        torch.tensor([10, 11])
+    )]
+    correct, true_labels, predicted_labels, confidences = collect_validation_predictions(
+        model,
+        loader,
+        torch.device("cpu")
+    )
+
+    assert correct == [1, 0]
+    assert true_labels == [0, 1]
+    assert predicted_labels == [0, 0]
+    assert len(confidences) == 2
+
+def test_collect_validation_predictions_rejects_invalid_batch_shape():
+    # ensure that batches missing labels fail clearly
+    loader = [(torch.zeros((2, 1, 28, 28)),)]
+
+    with pytest.raises(ValueError, match="images and labels"):
+        collect_validation_predictions(
+            CountingModel(),
+            loader,
+            torch.device("cpu")
+        )
 
 def test_collect_validation_predictions_rejects_empty_loader():
     # ensure validation cannot silently produce an empty profile
@@ -143,17 +174,29 @@ def test_load_validation_profile_rejects_invalid_adaptive_threshold(tmp_path):
     with pytest.raises(ValueError, match="adaptive_hcer_threshold"):
         load_validation_profile(profile_path)
 
-def test_validate_validation_profile_source_rejects_mismatched_seed():
-    # ensure a profile from another experiment cannot be reused silently
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("dataset", "GTSRB", "dataset"),
+        ("model", "OtherModel", "model"),
+        ("checkpoint", "checkpoints/other.pt", "checkpoint"),
+        ("seed", 7, "seed"),
+        ("fixed_hcer_threshold", 0.75, "fixed HCER threshold"),
+        ("adaptive_hcer_percentile", 95, "adaptive percentile")
+    ]
+)
+def test_validate_validation_profile_source_rejects_mismatch(name, value, message):
+    # ensure unrelated validation evidence cannot be reused silently
     profile = valid_profile()
+    profile[name] = value
 
-    with pytest.raises(ValueError, match="seed"):
+    with pytest.raises(ValueError, match=message):
         validate_validation_profile_source(
             profile=profile,
             dataset="MNIST",
             model="SimpleCNN",
             checkpoint="checkpoints/mnist_simple_cnn.pt",
-            seed=7,
+            seed=42,
             fixed_hcer_threshold=0.90,
             adaptive_hcer_percentile=90
         )

@@ -3,20 +3,8 @@
 import pytest
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, TensorDataset
-from scripts.build_gtsrb_validation_profile import build_gtsrb_validation_profile, collect_gtsrb_validation_outputs, load_validation_model, validate_checkpoint_metadata
+from scripts.build_gtsrb_validation_profile import build_gtsrb_validation_profile, load_validation_model, validate_checkpoint_metadata
 
-class StaticModel(nn.Module):
-    """Return fixed class predictions."""
-
-    def __init__(self, predictions: torch.Tensor):
-        super().__init__()
-        logits = torch.full((len(predictions), 43), -5.0)
-        logits[torch.arange(len(predictions)), predictions] = 5.0
-        self.register_buffer("logits", logits)
-
-    def forward(self, images: torch.Tensor) -> torch.Tensor:
-        return self.logits[:images.size(0)]
 
 def valid_config() -> dict:
     return {
@@ -110,41 +98,6 @@ def test_load_validation_model_builds_configured_architecture(monkeypatch, tmp_p
     assert captured["checkpoint_path"] == checkpoint_path
     assert captured["device"] == torch.device("cpu")
     assert not loaded_model.training
-
-def test_collect_gtsrb_validation_outputs_returns_expected_values():
-    # confirm labels, predictions and correctness are retained
-    images = torch.zeros(4, 3, 8, 8)
-    labels = torch.tensor([0, 2, 2, 1])
-    image_ids = torch.arange(4)
-    loader = DataLoader(TensorDataset(images, labels, image_ids), batch_size=4)
-    model = StaticModel(torch.tensor([0, 1, 2, 3]))
-
-    correct, true_labels, predicted_labels, confidences = collect_gtsrb_validation_outputs(
-        model,
-        loader,
-        torch.device("cpu")
-    )
-
-    assert correct == [1, 0, 1, 0]
-    assert true_labels == [0, 2, 2, 1]
-    assert predicted_labels == [0, 1, 2, 3]
-    assert len(confidences) == 4
-    assert all(0 <= confidence <= 1 for confidence in confidences)
-
-def test_collect_gtsrb_validation_outputs_rejects_empty_loader():
-    # ensure empty validation data raises a clear error
-    images = torch.empty(0, 3, 8, 8)
-    labels = torch.empty(0, dtype=torch.long)
-    image_ids = torch.empty(0, dtype=torch.long)
-    loader = DataLoader(TensorDataset(images, labels, image_ids), batch_size=2)
-    model = StaticModel(torch.empty(0, dtype=torch.long))
-
-    with pytest.raises(ValueError, match="Validation loader produced no examples"):
-        collect_gtsrb_validation_outputs(
-            model,
-            loader,
-            torch.device("cpu")
-        )
 
 def test_build_gtsrb_validation_profile_adds_split_evidence():
     # confirm the profile records class balance and track evidence

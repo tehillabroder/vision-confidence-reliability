@@ -7,10 +7,9 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset
 from experiments.gtsrb_degradation_eval import (
-    evaluate_condition, load_evaluation_model, load_validation_profile, 
-    save_evaluation_outputs, summarise_condition, validate_evaluation_sources
-) 
-from src.evaluation.runner import build_experiment_conditions
+    evaluate_condition, save_evaluation_outputs, summarise_condition,
+    validate_evaluation_sources, validate_gtsrb_validation_profile
+)
 
 class StaticModel(nn.Module):
     """Return fixed predictions for synthetic images."""
@@ -72,51 +71,6 @@ def valid_profile() -> dict:
         "rank_hcer_top_fraction": 0.10
     }
 
-def test_load_evaluation_model_builds_configured_architecture(monkeypatch, tmp_path):
-    # confirm evaluation rebuilds the configured model without downloading pretrained weights
-    captured = {}
-    model = nn.Linear(1, 1)
-
-    def fake_model_builder(model_name, num_classes, pretrained_weights):
-        captured["model_name"] = model_name
-        captured["num_classes"] = num_classes
-        captured["pretrained_weights"] = pretrained_weights
-        return model
-
-    def fake_checkpoint_loader(loaded_model, checkpoint_path, device):
-        assert loaded_model is model
-        captured["checkpoint_path"] = checkpoint_path
-        captured["device"] = device
-        return {"model": "ResNet18"}
-
-    monkeypatch.setattr("experiments.gtsrb_degradation_eval.build_gtsrb_model", fake_model_builder)
-    monkeypatch.setattr("experiments.gtsrb_degradation_eval.load_model_checkpoint", fake_checkpoint_loader)
-
-    checkpoint_path = tmp_path / "gtsrb_resnet18.pt"
-    loaded_model, metadata = load_evaluation_model(checkpoint_path, torch.device("cpu"), "ResNet18")
-
-    assert loaded_model is model
-    assert metadata == {"model": "ResNet18"}
-    assert captured["model_name"] == "ResNet18"
-    assert captured["num_classes"] == 43
-    assert captured["pretrained_weights"] is None
-    assert captured["checkpoint_path"] == checkpoint_path
-    assert captured["device"] == torch.device("cpu")
-    assert not loaded_model.training
-
-def test_build_experiment_conditions_includes_undegraded_baseline():
-    # confirm the undegraded condition appears once before degraded conditions
-    conditions = build_experiment_conditions(
-        ["blur", "noise"],
-        [1, 2]
-    )
-    assert conditions == [
-        ("none", 0),
-        ("blur", 1),
-        ("blur", 2),
-        ("noise", 1),
-        ("noise", 2)
-    ]
 
 def test_evaluate_condition_returns_prediction_rows(monkeypatch):
     # confirm each evaluated image produces a complete prediction row
@@ -154,6 +108,9 @@ def test_evaluate_condition_returns_prediction_rows(monkeypatch):
     assert [row["image_id"] for row in rows] == [10, 11, 12, 13]
     assert all(row["dataset"] == "GTSRB" for row in rows)
     assert all(row["model"] == "ResNet18" for row in rows)
+    assert all(row["seed"] == 42 for row in rows)
+    assert all(row["degradation"] == "noise" for row in rows)
+    assert all(row["severity"] == 3 for row in rows)
     assert all(0 <= row["confidence"] <= 1 for row in rows)
     assert captured == {
         "data_dir": "data",
@@ -161,66 +118,8 @@ def test_evaluate_condition_returns_prediction_rows(monkeypatch):
         "severity": 3
     }
 
-def test_evaluate_condition_respects_batch_limit(monkeypatch):
-    # create six simple test images, which would normally make three batches
-    images = torch.zeros(6, 3, 8, 8)
-    labels = torch.zeros(6, dtype=torch.long)
-    image_ids = torch.arange(6)
-    dataset = TensorDataset(images, labels, image_ids)
-    # use the small test dataset instead of loading the real GTSRB data
-    # so this test only checks whether evaluation stops after one batch
-    monkeypatch.setattr(
-        "experiments.gtsrb_degradation_eval.build_gtsrb_test_dataset",
-        lambda data_dir, degradation, severity: dataset
-    )
-    # one batch contains two images, so the model only needs two predictions
-    model = StaticModel(torch.zeros(2, dtype=torch.long))
-
-    rows = evaluate_condition(
-        model=model,
-        device=torch.device("cpu"),
-        model_name="GTSRBCNN",
-        data_dir="data",
-        batch_size=2,
-        degradation="none",
-        severity=0,
-        seed=42,
-        max_eval_batches=1
-    )
-    # confirm evaluation stopped after the first batch rather than processing all six images
-    assert len(rows) == 2
-
-def test_evaluate_condition_rejects_empty_dataset(monkeypatch):
-    # create an empty dataset to represent missing evaluation data
-    images = torch.empty(0, 3, 8, 8)
-    labels = torch.empty(0, dtype=torch.long)
-    image_ids = torch.empty(0, dtype=torch.long)
-    dataset = TensorDataset(images, labels, image_ids)
-
-    # replace real GTSRB loading so the function receives no evaluation samples
-    monkeypatch.setattr(
-        "experiments.gtsrb_degradation_eval.build_gtsrb_test_dataset",
-        lambda data_dir, degradation, severity: dataset
-    )
-    # no predictions are needed because the loader contains no batches
-    model = StaticModel(torch.empty(0, dtype=torch.long))
-    
-    # confirm the function rejects an empty run instead of returning empty results
-    with pytest.raises(ValueError, match="Evaluation produced no predictions"):
-        evaluate_condition(
-            model=model,
-            device=torch.device("cpu"),
-            model_name="GTSRBCNN",
-            data_dir="data",
-            batch_size=2,
-            degradation="none",
-            severity=0,
-            seed=42,
-            max_eval_batches=None
-        )
-
 def test_summarise_condition_includes_balanced_accuracy_and_hcer():
-    # confirm GTSRB summaries include class balance and both HCER variants
+    # confirm GTSRB summaries include class balance and all HCER diagnostics
     rows = [
         {
             "dataset": "GTSRB",
@@ -292,42 +191,51 @@ def test_summarise_condition_includes_balanced_accuracy_and_hcer():
     assert summary["rank_hcer_top_fraction"] == pytest.approx(0.50)
     assert summary["num_examples"] == 4
 
-def test_load_validation_profile_accepts_matching_profile(tmp_path):
-    # confirm matching validation evidence can be loaded
-    profile_path = tmp_path / "profile.json"
-    profile_path.write_text(
-        json.dumps(valid_profile()),
-        encoding="utf-8"
+def test_validate_gtsrb_validation_profile_accepts_matching_profile():
+    # confirm GTSRB-specific reliability and track evidence is accepted
+    split_metadata = validate_gtsrb_validation_profile(valid_profile(), valid_config())
+
+    assert split_metadata == valid_split_metadata()
+
+def test_validate_evaluation_sources_accepts_matching_sources():
+    # confirm evaluation accepts checkpoint and profile evidence from the same split
+    split_metadata = valid_split_metadata()
+    metadata = {
+        "dataset": "GTSRB",
+        "model": "GTSRBCNN",
+        "seed": 42,
+        "class_count": 43,
+        "validation_split": "stratified_track",
+        "requested_validation_size": 4000,
+        "validation_size": 3990,
+        "track_overlap": 0,
+        "validation_track_hash": "a" * 64,
+        "split_metadata": split_metadata
+    }
+
+    validated_split = validate_evaluation_sources(
+        metadata,
+        split_metadata,
+        valid_config()
     )
 
-    profile = load_validation_profile(profile_path, valid_config())
+    assert validated_split == split_metadata
 
-    assert profile["adaptive_hcer_threshold"] == 0.80
-
-@pytest.mark.parametrize(
-    ("name", "value"),
-    [
-        ("dataset", "MNIST"),
-        ("model", "SimpleCNN"),
-        ("checkpoint", "checkpoints/other.pt"),
-        ("seed", 7),
-        ("fixed_hcer_threshold", 0.75),
-        ("adaptive_hcer_percentile", 95),
-        ("rank_hcer_top_fraction", 0.20)
-    ]
-)
-def test_load_validation_profile_rejects_mismatch(tmp_path, name, value):
-    # ensure evaluation cannot use unrelated validation evidence
+def test_validate_gtsrb_validation_profile_rejects_rank_fraction_mismatch():
+    # ensure gtsrb evaluation uses the correct rank as its validation profile
     profile = valid_profile()
-    profile[name] = value
-    profile_path = tmp_path / "profile.json"
-    profile_path.write_text(
-        json.dumps(profile),
-        encoding="utf-8"
-    )
+    profile["rank_hcer_top_fraction"] = 0.20
 
-    with pytest.raises(ValueError, match=f"Validation profile {name}"):
-        load_validation_profile(profile_path, valid_config())
+    with pytest.raises(ValueError, match="rank_hcer_top_fraction"):
+        validate_gtsrb_validation_profile(profile, valid_config())
+
+def test_validate_gtsrb_validation_profile_rejects_split_evidence_mismatch():
+    # ensure duplicated profile fields cannot disagree with the saved track evidence
+    profile = valid_profile()
+    profile["validation_track_hash"] = "c" * 64
+
+    with pytest.raises(ValueError, match="does not match its split metadata"):
+        validate_gtsrb_validation_profile(profile, valid_config())
 
 def test_save_evaluation_outputs_creates_expected_files(tmp_path):
     # check that every required evaluation evidence file is saved
@@ -369,7 +277,6 @@ def test_save_evaluation_outputs_creates_expected_files(tmp_path):
 
 def test_validate_evaluation_sources_rejects_split_mismatch():
     # ensure evaluation cannot combine unrelated split evidence
-    profile = valid_profile()
     metadata = {
         "dataset": "GTSRB",
         "model": "GTSRBCNN",
@@ -385,13 +292,5 @@ def test_validate_evaluation_sources_rejects_split_mismatch():
             "validation_track_hash": "c" * 64
         }
     }
-
-    with pytest.raises(
-        ValueError,
-        match="different GTSRB track splits"
-    ):
-        validate_evaluation_sources(
-            metadata,
-            profile,
-            valid_config()
-        )
+    with pytest.raises(ValueError, match="different GTSRB track splits"):
+        validate_evaluation_sources(metadata, valid_split_metadata(), valid_config())

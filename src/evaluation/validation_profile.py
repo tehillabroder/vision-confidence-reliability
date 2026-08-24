@@ -13,25 +13,34 @@ from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, me
 from src.metrics.reliability import expected_calibration_error, high_confidence_error_rate
 
 @torch.no_grad()
-def collect_validation_predictions(model: nn.Module, loader: Iterable, device: torch.device) -> tuple[list[int], list[float]]:
+def collect_validation_predictions(model: nn.Module, loader: Iterable, device: torch.device) -> tuple[list[int], list[int], list[int], list[float]]:
     model.eval()
     correct = []
+    true_labels = []
+    predicted_labels = []
     confidences = []
 
-    for images, labels in loader:
+    for batch in loader:
+        # image IDs are allowed so datasets can use the same validation collector
+        if not isinstance(batch, (tuple, list)) or len(batch) not in (2, 3):
+            raise ValueError("Validation batches must contain images and labels, with an optional image ID.")
+
+        images, labels = batch[:2]
         images = images.to(device)
         labels = labels.to(device)
         probabilities = F.softmax(model(images), dim=1)
         batch_confidences, predictions = probabilities.max(dim=1)
 
-        # cast to integer mask on cpu to ensure reliable binary mapping downstream
+        # keep the labels so dataset-specific metrics can be calculated later
         correct.extend(predictions.eq(labels).int().cpu().tolist())
+        true_labels.extend(labels.cpu().tolist())
+        predicted_labels.extend(predictions.cpu().tolist())
         confidences.extend(batch_confidences.cpu().tolist())
 
     if not correct:
         raise ValueError("Validation evaluation produced no predictions.")
 
-    return correct, confidences
+    return correct, true_labels, predicted_labels, confidences
 
 def calculate_adaptive_threshold(confidences: list[float], percentile: float) -> float:
     if not confidences:

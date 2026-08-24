@@ -11,42 +11,13 @@ from torch.utils.data import DataLoader
 from scripts.train_gtsrb import select_device
 from src.datasets.gtsrb import GTSRB_CLASS_COUNT, build_gtsrb_train_validation_split
 from src.datasets.gtsrb_split import validate_gtsrb_split_metadata
-from src.evaluation.validation_profile import build_validation_profile, save_validation_profile
+from src.evaluation.validation_profile import build_validation_profile, collect_validation_predictions, save_validation_profile
 from src.metrics.reliability import high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
 from src.models.gtsrb_models import build_gtsrb_model
 from src.utils.config import load_config
 from src.utils.seeds import set_seed
 
-@torch.no_grad()
-def collect_gtsrb_validation_outputs(
-    model: nn.Module,
-    loader: DataLoader,
-    device: torch.device
-) -> tuple[list[int], list[int], list[int], list[float]]:
-    """Collect GTSRB validation predictions and confidence values."""
-    model.eval()
-    correct = []
-    true_labels = []
-    predicted_labels = []
-    confidences = []
-
-    for images, labels, _ in loader:
-        images = images.to(device)
-        labels = labels.to(device)
-
-        probabilities = torch.softmax(model(images), dim=1)
-        batch_confidences, predictions = probabilities.max(dim=1)
-
-        correct.extend(predictions.eq(labels).int().cpu().tolist())
-        true_labels.extend(labels.cpu().tolist())
-        predicted_labels.extend(predictions.cpu().tolist())
-        confidences.extend(batch_confidences.cpu().tolist())
-
-    if not true_labels:
-        raise ValueError("Validation loader produced no examples.")
-
-    return correct, true_labels, predicted_labels, confidences
 
 def load_validation_model(checkpoint_path: Path, device: torch.device, model_name: str) -> tuple[nn.Module, dict]:
     """Load one saved GTSRB model for validation."""
@@ -196,7 +167,7 @@ def main() -> None:
     # reject mismatched checkpoints before producing an invalid reference profile
     validate_checkpoint_metadata(metadata, config, split_metadata)
 
-    correct, true_labels, predicted_labels, confidences = collect_gtsrb_validation_outputs(
+    correct, true_labels, predicted_labels, confidences = collect_validation_predictions(
         model,
         validation_loader,
         device
