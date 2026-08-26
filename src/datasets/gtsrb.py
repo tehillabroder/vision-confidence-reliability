@@ -20,6 +20,15 @@ GTSRB_RESIZE_INTERPOLATION = transforms.InterpolationMode.BILINEAR
 GTSRB_RESIZE_ANTIALIAS = True
 # degrade images while they are still normal 0-1 pixels, before normalising them
 GTSRB_PREPROCESS_ORDER = "resize_degrade_normalise"
+# resizing is always applied, no additional training augmentations are used
+GTSRB_TRAINING_AUGMENTATION = {
+    "resize": True,
+    "random_crop": False,
+    "rotation": False,
+    "blur": False,
+    "noise": False,
+    "brightness_contrast": False
+}
 # resize raw images and convert to tensors first, ready for degradation
 GTSRB_PREPROCESS = transforms.Compose([
     transforms.Resize(GTSRB_IMAGE_SIZE, interpolation=GTSRB_RESIZE_INTERPOLATION, antialias=GTSRB_RESIZE_ANTIALIAS),

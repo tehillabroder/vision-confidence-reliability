@@ -10,7 +10,7 @@ import torch.nn as nn
 from sklearn.metrics import balanced_accuracy_score
 from torch.utils.data import DataLoader
 from src.datasets.gtsrb import (
-    GTSRB_CLASS_COUNT, GTSRB_IMAGE_SIZE, GTSRB_NORMALISE_MEAN, GTSRB_NORMALISE_STD, 
+    GTSRB_CLASS_COUNT, GTSRB_IMAGE_SIZE, GTSRB_NORMALISE_MEAN, GTSRB_NORMALISE_STD, GTSRB_TRAINING_AUGMENTATION,
     GTSRB_PREPROCESS_ORDER, GTSRB_RESIZE_ANTIALIAS, GTSRB_RESIZE_INTERPOLATION, build_gtsrb_train_validation_split
 )
 from src.datasets.gtsrb_split import validate_gtsrb_split_metadata
@@ -123,7 +123,7 @@ def build_checkpoint_metadata(
             "validation_track_hash"
         ],
         "split_metadata": split_metadata,
-        "training_augmentation": training_config["augmentation"],
+        "training_augmentation": dict(GTSRB_TRAINING_AUGMENTATION),
         "device": str(device),
         "config": str(config_copy_path)
     }

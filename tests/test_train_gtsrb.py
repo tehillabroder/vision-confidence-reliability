@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from scripts.train_gtsrb import build_checkpoint_metadata, calculate_validation_metrics, train_model
+from src.datasets.gtsrb import GTSRB_TRAINING_AUGMENTATION
 
 class StaticModel(nn.Module):
     """Return fixed predictions for validation metric tests."""
@@ -82,7 +83,12 @@ def test_build_checkpoint_metadata_records_reproducible_training_context():
             "validation_size": 4000,
             "validation_split": "stratified_track",
             "augmentation": {
-                "resize": True
+                "resize": True,
+                "random_crop": False,
+                "rotation": False,
+                "blur": False,
+                "noise": False,
+                "brightness_contrast": False
             }
         }
     }
@@ -125,3 +131,4 @@ def test_build_checkpoint_metadata_records_reproducible_training_context():
     assert metadata["preprocessing_order"] == "resize_degrade_normalise"
     assert metadata["resize_interpolation"] == "bilinear"
     assert metadata["resize_antialias"] is True
+    assert metadata["training_augmentation"] == GTSRB_TRAINING_AUGMENTATION

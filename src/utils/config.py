@@ -5,6 +5,8 @@ from pathlib import Path
 import shutil
 import yaml
 from src.models.gtsrb_models import SUPPORTED_GTSRB_MODELS, get_supported_gtsrb_pretrained_weights
+from src.datasets.gtsrb import GTSRB_TRAINING_AUGMENTATION
+from src.datasets.mnist import MNIST_TRAINING_AUGMENTATION
 
 SUPPORTED_DEGRADATIONS = {"blur", "noise", "low_light"}
 SUPPORTED_GTSRB_VALIDATION_SPLITS = {"stratified_track"}
@@ -13,7 +15,10 @@ SUPPORTED_DATASET_MODELS = {
     "MNIST": {"SimpleCNN"},
     "GTSRB": SUPPORTED_GTSRB_MODELS
 }
-
+EXPECTED_TRAINING_AUGMENTATION = {
+    "MNIST": MNIST_TRAINING_AUGMENTATION,
+    "GTSRB": GTSRB_TRAINING_AUGMENTATION
+}
 AUGMENTATION_KEYS = (
     "resize",
     "random_crop",
@@ -53,8 +58,27 @@ def _require_number_in_range(value: object, name: str, minimum: float, maximum: 
     if not minimum <= value <= maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}.")
 
-def _validate_gtsrb_model_config(model: str, training: dict) -> None:
+def _validate_training_augmentation(dataset: str, augmentation: object) -> None:
+    if not isinstance(augmentation, dict):
+        raise ValueError("training.augmentation must be a mapping.")
+    
+    missing_keys = set(AUGMENTATION_KEYS) - set(augmentation)
+    unsupported_keys = set(augmentation) - set(AUGMENTATION_KEYS)
 
+    if missing_keys:
+        raise ValueError(f"training.augmentation is missing: {', '.join(sorted(missing_keys))}.")
+    if unsupported_keys:
+        raise ValueError(f"training.augmentation contains unsupported keys: {', '.join(sorted(unsupported_keys))}.")
+
+    for key in AUGMENTATION_KEYS:
+        if not isinstance(augmentation[key], bool):
+            raise ValueError(f"training.augmentation.{key} must be true or false.")
+
+    # these fields record the implemented training pipeline
+    if augmentation != EXPECTED_TRAINING_AUGMENTATION[dataset]:
+        raise ValueError(f"training.augmentation must match the implemented {dataset} training pipeline.")
+    
+def _validate_gtsrb_model_config(model: str, training: dict) -> None:
     pretrained_weights = training.get("pretrained_weights")
     if pretrained_weights is not None and not isinstance(pretrained_weights, str):
         raise ValueError("training.pretrained_weights must be a string or null.")
@@ -148,16 +172,8 @@ def validate_config(config: dict) -> None:
             )
         _validate_gtsrb_model_config(config["model"], training)
         
-    learning_rate = training.get("learning_rate")
-    if learning_rate is not None:
-        _require_positive_number(learning_rate, "training.learning_rate")
-
-    augmentation = training.get("augmentation")
-    if not isinstance(augmentation, dict):
-        raise ValueError("training.augmentation must be a mapping.")
-    for key in AUGMENTATION_KEYS:
-        if not isinstance(augmentation.get(key), bool):
-            raise ValueError(f"training.augmentation.{key} must be true or false.")
+    _require_positive_number(training.get("learning_rate"), "training.learning_rate")
+    _validate_training_augmentation(dataset, training.get("augmentation"))
 
     _require_positive_int(evaluation.get("batch_size"), "evaluation.batch_size")
     _require_optional_positive_int(evaluation.get("max_eval_batches"), "evaluation.max_eval_batches")

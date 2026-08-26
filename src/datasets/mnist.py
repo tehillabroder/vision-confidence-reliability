@@ -6,7 +6,19 @@ from torchvision import datasets, transforms
 
 from src.degradations.image_degradations import apply_degradation
 
-MNIST_NORMALISE = transforms.Normalize((0.1307,), (0.3081,))
+# facts about the implemented MNIST pipeline
+MNIST_IMAGE_SIZE = (28, 28)
+MNIST_NORMALISE_MEAN = (0.1307,)
+MNIST_NORMALISE_STD = (0.3081,)
+MNIST_NORMALISE = transforms.Normalize(MNIST_NORMALISE_MEAN, MNIST_NORMALISE_STD)
+MNIST_TRAINING_AUGMENTATION = {
+    "resize": False,
+    "random_crop": False,
+    "rotation": False,
+    "blur": False,
+    "noise": False,
+    "brightness_contrast": False
+}
 
 def split_dataset(dataset: Dataset, validation_size: int, seed: int) -> tuple[Subset, Subset]:
     """Split a dataset into training and validation sets."""

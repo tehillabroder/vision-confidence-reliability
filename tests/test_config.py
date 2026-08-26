@@ -22,6 +22,7 @@ def valid_config() -> dict:
             "batch_size": 64,
             "validation_size": 5000,
             "max_train_batches": None,
+            "learning_rate": 0.001,
             "augmentation": {
                 "resize": False,
                 "random_crop": False,
@@ -73,6 +74,7 @@ def valid_gtsrb_config(
     config["training"]["validation_split"] = "stratified_track"
     config["training"]["pretrained_weights"] = pretrained_weights
     config["training"]["training_strategy"] = training_strategy
+    config["training"]["augmentation"]["resize"] = True
     config["evaluation"]["rank_hcer_top_fraction"] = 0.10
     return config
 
@@ -165,6 +167,42 @@ def test_load_config_rejects_invalid_learning_rate(tmp_path):
     config_path = write_config(tmp_path, config)
 
     with pytest.raises(ValueError, match="training.learning_rate"):
+        load_config(config_path)
+
+def test_load_config_rejects_missing_learning_rate(tmp_path):
+    # training settings shouldn't silently fall back to a hidden learning rate
+    config = valid_config()
+    del config["training"]["learning_rate"]
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="training.learning_rate"):
+        load_config(config_path)
+
+def test_load_config_rejects_unimplemented_mnist_augmentation(tmp_path):
+    # make sure the config cannot claim a training augmentation that MNIST doesn't use
+    config = valid_config()
+    config["training"]["augmentation"]["blur"] = True
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="implemented MNIST training pipeline"):
+        load_config(config_path)
+
+def test_load_config_rejects_incorrect_gtsrb_resize_setting(tmp_path):
+    # ensure config records the resize that the GTSRB pipeline actually applies
+    config = valid_gtsrb_config()
+    config["training"]["augmentation"]["resize"] = False
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="implemented GTSRB training pipeline"):
+        load_config(config_path)
+
+def test_load_config_rejects_unknown_augmentation_key(tmp_path):
+    # ensure unused augmentation settings cannot be accepted silently
+    config = valid_config()
+    config["training"]["augmentation"]["horizontal_flip"] = False
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="unsupported keys"):
         load_config(config_path)
 
 def test_load_config_accepts_gtsrb_track_split(tmp_path):

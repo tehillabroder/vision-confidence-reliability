@@ -11,6 +11,7 @@ training:
   batch_size: 64
   validation_size: 5000
   max_train_batches: null
+  learning_rate: 0.001
   augmentation:
     resize: false
     random_crop: false

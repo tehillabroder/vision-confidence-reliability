@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from src.datasets.mnist import build_mnist_train_validation_datasets
+from src.datasets.mnist import MNIST_IMAGE_SIZE, MNIST_NORMALISE_MEAN, MNIST_NORMALISE_STD, MNIST_TRAINING_AUGMENTATION, build_mnist_train_validation_datasets
 from src.models.checkpoints import save_model_checkpoint
 from src.models.simple_cnn import SimpleCNN
 from src.utils.seeds import set_seed
@@ -18,10 +18,11 @@ def train_model(
     loader: DataLoader,
     device: torch.device,
     epochs: int,
+    learning_rate: float,
     max_train_batches: Optional[int]
 ) -> None:
     model.train()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.CrossEntropyLoss()
 
     for epoch in range(1, epochs + 1):
@@ -68,6 +69,35 @@ def calculate_accuracy(model: nn.Module, loader: DataLoader, device: torch.devic
 
     return correct / total
 
+def build_checkpoint_metadata(
+    config: dict,
+    train_size: int,
+    validation_size: int,
+    validation_accuracy: float,
+    device: torch.device,
+    config_copy_path: Path
+) -> dict:
+    """Build reproducible MNIST checkpoint evidence."""
+    training_config = config["training"]
+
+    return {
+        "dataset": config["dataset"],
+        "model": config["model"],
+        "seed": config["seed"],
+        "epochs": training_config["epochs"],
+        "batch_size": training_config["batch_size"],
+        "learning_rate": training_config["learning_rate"],
+        "train_size": train_size,
+        "validation_size": validation_size,
+        "validation_accuracy": validation_accuracy,
+        "image_size": MNIST_IMAGE_SIZE,
+        "normalisation_mean": list(MNIST_NORMALISE_MEAN),
+        "normalisation_std": list(MNIST_NORMALISE_STD),
+        "training_augmentation": dict(MNIST_TRAINING_AUGMENTATION),
+        "device": str(device),
+        "config": str(config_copy_path)
+    }
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the MNIST SimpleCNN checkpoint")
     parser.add_argument("--config", default="configs/mnist.yaml")
@@ -111,6 +141,7 @@ def main() -> None:
         loader=train_loader,
         device=device,
         epochs=training_config["epochs"],
+        learning_rate=training_config["learning_rate"],
         max_train_batches=training_config["max_train_batches"]
     )
 
@@ -118,18 +149,14 @@ def main() -> None:
     checkpoint_path = Path(config["checkpoint"])
     config_copy_path = checkpoint_path.with_name(f"{checkpoint_path.stem}_config.yaml")
 
-    metadata = {
-        "dataset": config["dataset"],
-        "model": config["model"],
-        "seed": config["seed"],
-        "epochs": training_config["epochs"],
-        "batch_size": training_config["batch_size"],
-        "train_size": len(train_set),
-        "validation_size": len(validation_set),
-        "validation_accuracy": validation_accuracy,
-        "training_augmentation": training_config["augmentation"],
-        "config": str(config_copy_path)
-    }
+    metadata = build_checkpoint_metadata(
+        config=config,
+        train_size=len(train_set),
+        validation_size=len(validation_set),
+        validation_accuracy=validation_accuracy,
+        device=device,
+        config_copy_path=config_copy_path
+    )
 
     save_model_checkpoint(model, checkpoint_path, metadata)
     save_config_copy(config_path, config_copy_path)
