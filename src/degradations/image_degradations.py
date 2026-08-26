@@ -8,7 +8,8 @@ Severity 0 returns the undegraded image.
 import torch
 from torchvision.transforms import functional as TF
 
-VALID_DEGRADATIONS = {"none", "blur", "noise", "low_light"}
+SUPPORTED_DEGRADATIONS = {"blur", "noise", "low_light"}
+VALID_DEGRADATIONS = {"none"} | SUPPORTED_DEGRADATIONS
 
 def apply_degradation(image: torch.Tensor, degradation: str, severity: int) -> torch.Tensor:
     if degradation not in VALID_DEGRADATIONS:

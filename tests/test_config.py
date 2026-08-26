@@ -196,6 +196,15 @@ def test_load_config_rejects_incorrect_gtsrb_resize_setting(tmp_path):
     with pytest.raises(ValueError, match="implemented GTSRB training pipeline"):
         load_config(config_path)
 
+def test_load_config_rejects_unknown_degradation(tmp_path):
+    # ensure configs can only select implemented degradations
+    config = valid_config()
+    config["evaluation"]["degradations"] = ["blur", "compression"]
+    config_path = write_config(tmp_path, config)
+
+    with pytest.raises(ValueError, match="unsupported degradation"):
+        load_config(config_path)
+
 def test_load_config_rejects_unknown_augmentation_key(tmp_path):
     # ensure unused augmentation settings cannot be accepted silently
     config = valid_config()

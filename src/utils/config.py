@@ -7,8 +7,8 @@ import yaml
 from src.models.gtsrb_models import SUPPORTED_GTSRB_MODELS, get_supported_gtsrb_pretrained_weights
 from src.datasets.gtsrb import GTSRB_TRAINING_AUGMENTATION
 from src.datasets.mnist import MNIST_TRAINING_AUGMENTATION
+from src.degradations.image_degradations import SUPPORTED_DEGRADATIONS
 
-SUPPORTED_DEGRADATIONS = {"blur", "noise", "low_light"}
 SUPPORTED_GTSRB_VALIDATION_SPLITS = {"stratified_track"}
 SUPPORTED_GTSRB_TRAINING_STRATEGIES = {"from_scratch", "full_finetune"}
 SUPPORTED_DATASET_MODELS = {

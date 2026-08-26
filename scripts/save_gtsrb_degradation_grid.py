@@ -8,7 +8,6 @@ from src.datasets.gtsrb import GTSRBDataset
 from src.utils.config import load_config
 from src.utils.seeds import set_seed
 
-DEGRADATIONS = ("blur", "noise", "low_light")
 DEFAULT_OUTPUT = "results/sanity_checks/gtsrb_degradation_grid.png"
 
 def main() -> None:
@@ -34,12 +33,15 @@ def main() -> None:
 
     clean_dataset = GTSRBDataset(base_dataset, normalise=False)
     clean_image, label, _ = clean_dataset[args.image_id]
+    evaluation_config = config["evaluation"]
     grid_images = []
 
-    for degradation in DEGRADATIONS:
+    for degradation in evaluation_config["degradations"]:
         grid_images.append(clean_image)
 
-        for severity in range(1, 6):
+        for severity in evaluation_config["severity_levels"]:
+            # reset the seed so noise severity changes use the same random pattern
+            set_seed(config["seed"])
             dataset = GTSRBDataset(
                 base_dataset=base_dataset,
                 degradation=degradation,
@@ -51,7 +53,7 @@ def main() -> None:
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    grid = make_grid(grid_images, nrow=6, padding=2)
+    grid = make_grid(grid_images, nrow=len(evaluation_config["severity_levels"]) + 1, padding=2)
     save_image(grid, output_path)
 
     print(f"Image ID: {args.image_id}")

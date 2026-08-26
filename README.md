@@ -293,6 +293,22 @@ The configs control things that can change between runs, including:
 
 Training augmentation entries record what the dataset pipeline actually uses. The config loader rejects augmentation settings that are not implemented.
 
+## Visual degradation checks
+
+The two sanity-check scripts save one image across the configured degradation severities so the degradation strengths can be checked visually.
+
+MNIST:
+
+```bash
+python -m scripts.save_mnist_degradation_grid --config configs/mnist.yaml
+```
+
+GTSRB:
+
+```bash
+python -m scripts.save_gtsrb_degradation_grid --config configs/gtsrb.yaml
+```
+
 ## Running MNIST
 
 ### Train
@@ -472,6 +488,8 @@ These saved predictions allow metrics and later analysis to be checked without r
 │   ├── build_mnist_validation_profile.py
 │   ├── compare_gtsrb_models.py
 │   ├── plot_metrics.py
+│   ├── save_gtsrb_degradation_grid.py
+│   ├── save_mnist_degradation_grid.py
 │   ├── train_gtsrb.py
 │   └── train_mnist.py
 ├── src/
@@ -483,7 +501,6 @@ These saved predictions allow metrics and later analysis to be checked without r
 │   ├── reporting/
 │   └── utils/
 ├── tests/
-├── DEV_DIARY.md
 ├── EXPERIMENT_LOG.md
 ├── README.md
 └── requirements.txt
@@ -600,7 +617,5 @@ The results therefore describe the models, datasets and degradation conditions t
 The main contribution is a reusable evaluation workflow that brings controlled degradation tests, prediction-level evidence, reliability metrics and trust warnings together.
 
 The experiments show that similar accuracy does not necessarily mean similar confidence behaviour. Under severe Gaussian noise, GTSRBCNN and ResNet18 reached almost the same accuracy while remaining very different in mean confidence, confidence-accuracy gap and high-confidence error behaviour.
-
-The framework brings those differences together into an interpretable trust signal, helping show not only when performance has deteriorated, but why a condition has been flagged. The current signal is baseline-relative, so it is best understood as a warning of significant deterioration rather than an absolute judgement of whether a model is suitable for deployment.
 
 The practical value is that two models can reach similar accuracy while failing in very different ways, and the framework makes those differences visible.

@@ -22,7 +22,7 @@ def test_high_confidence_coverage_counts_selected_predictions():
     assert high_confidence_coverage(confidences, threshold=1.0) == pytest.approx(0.25)
 
 def test_rank_based_hcer_keeps_fixed_coverage_with_ties():
-    # comfirm that stable sorting picks exactly the top 40% (2 of 5 items) even when scores tie    
+    # confirm stable sorting picks exactly the top 40% even when scores tie
     correct = [1, 0, 0, 0, 1]
     confidences = [1.0, 1.0, 1.0, 1.0, 0.50]
 
@@ -52,21 +52,6 @@ def test_calibration_bins_returns_requested_number_of_bins():
     assert len(rows) == 10
     assert sum(row["count"] for row in rows) == 3
 
-def test_ece_rejects_mismatched_lengths():
-    # ensure metrics fail safely if prediction arrays are out of sync
-    with pytest.raises(ValueError):
-        expected_calibration_error([1, 0], [0.9])
-
-def test_ece_raises_error_for_empty_lists():
-    # ensure metrics fail safely if provided with no data
-    with pytest.raises(ValueError):
-        expected_calibration_error([], [])
-
-def test_ece_raises_error_for_invalid_confidence_values():
-    # confidence probabilities must mathematically be between 0 and 1
-    with pytest.raises(ValueError):
-        expected_calibration_error([1], [1.5])
-
 def test_ece_handles_empty_bins_gracefully():
     # polarised predictions should leave the middle bins completely empty
     correct = [1, 0]
@@ -74,3 +59,36 @@ def test_ece_handles_empty_bins_gracefully():
     # this proves the loop continues safely without triggering divide-by-zero errors
     ece = expected_calibration_error(correct, confidences, n_bins=10)
     assert ece == pytest.approx(0.9)
+
+@pytest.mark.parametrize("metric", [expected_calibration_error, high_confidence_error_rate, calibration_bins])
+def test_prediction_metrics_reject_mismatched_lengths(metric):
+    # reliability metrics must not use prediction arrays that are out of sync
+    with pytest.raises(ValueError, match="same length"):
+        metric([1, 0], [0.9])
+
+@pytest.mark.parametrize("metric", [expected_calibration_error, high_confidence_error_rate, calibration_bins])
+def test_prediction_metrics_reject_empty_inputs(metric):
+    # checks that condition metrics cannot be calculated without predictions
+    with pytest.raises(ValueError):
+        metric([], [])
+
+@pytest.mark.parametrize("metric", [expected_calibration_error, high_confidence_error_rate, calibration_bins])
+def test_prediction_metrics_reject_invalid_confidences(metric):
+    # check confidence values remain valid probabilities
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        metric([1], [1.5])
+
+def test_hcer_rejects_invalid_threshold():
+    # ensure HCER cannot use an invalid confidence threshold
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        high_confidence_error_rate([1], [0.9], threshold=1.1)
+
+def test_calibration_bins_rejects_invalid_bin_count():
+    # calibration output must always use a real binning scheme
+    with pytest.raises(ValueError, match="positive integer"):
+        calibration_bins([1], [0.9], n_bins=0)
+
+def test_rank_based_hcer_rejects_invalid_correctness():
+    # ensure ranked HCER still requires binary correctness values
+    with pytest.raises(ValueError, match="0 or 1"):
+        rank_based_high_confidence_error_rate([2, 0], [0.9, 0.8])
