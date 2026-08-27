@@ -12,7 +12,7 @@ from src.evaluation.validation_profile import (
     collect_validation_predictions,
     save_validation_profile
 )
-from src.models.checkpoints import load_model_checkpoint
+from src.models.checkpoints import load_model_checkpoint, validate_checkpoint_source
 from src.models.simple_cnn import SimpleCNN
 from src.utils.config import load_config
 from src.utils.seeds import set_seed
@@ -52,8 +52,19 @@ def main() -> None:
     print(f"Validation examples: {len(validation_set)}")
 
     checkpoint_path = Path(config["checkpoint"])
+
     model = SimpleCNN().to(device)
-    load_model_checkpoint(model, checkpoint_path, device)
+    metadata = load_model_checkpoint(model, checkpoint_path, device)
+    # check the saved checkpoint before using it to define the validation baseline
+    validate_checkpoint_source(
+        metadata,
+        {
+            "dataset": config["dataset"],
+            "model": config["model"],
+            "seed": config["seed"]
+        },
+        "MNIST configuration"
+    )
 
     correct, _, _, confidences = collect_validation_predictions(
         model,

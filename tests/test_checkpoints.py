@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from src.models.checkpoints import load_model_checkpoint, save_model_checkpoint
+from src.models.checkpoints import load_model_checkpoint, save_model_checkpoint, validate_checkpoint_source
 from src.models.simple_cnn import SimpleCNN
 
 def test_checkpoint_round_trip_preserves_model_weights(tmp_path):
@@ -65,3 +65,29 @@ def test_checkpoint_loader_rejects_invalid_metadata(tmp_path):
 
     with pytest.raises(ValueError, match="metadata must be a dictionary"):
         load_model_checkpoint(SimpleCNN(), checkpoint_path, torch.device("cpu"))
+
+def test_validate_checkpoint_source_accepts_matching_metadata():
+    # confirm checkpoint identity can be checked against the configured run
+    validate_checkpoint_source(
+        {"dataset": "MNIST", "model": "SimpleCNN", "seed": 42},
+        {"dataset": "MNIST", "model": "SimpleCNN", "seed": 42},
+        "MNIST configuration"
+    )
+
+def test_validate_checkpoint_source_rejects_mismatched_metadata():
+    # ensure a compatible model cannot be used with the wrong saved source
+    with pytest.raises(ValueError, match="seed"):
+        validate_checkpoint_source(
+            {"dataset": "MNIST", "model": "SimpleCNN", "seed": 7},
+            {"dataset": "MNIST", "model": "SimpleCNN", "seed": 42},
+            "MNIST configuration"
+        )
+
+def test_validate_checkpoint_source_rejects_missing_metadata():
+    # ensure incomplete checkpoint evidence cannot pass the source check
+    with pytest.raises(ValueError, match="model"):
+        validate_checkpoint_source(
+            {"dataset": "MNIST", "seed": 42},
+            {"dataset": "MNIST", "model": "SimpleCNN", "seed": 42},
+            "MNIST configuration"
+        )

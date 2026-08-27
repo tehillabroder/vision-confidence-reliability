@@ -14,7 +14,7 @@ from src.evaluation.runner import (
 ) 
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
 from src.metrics.reliability import expected_calibration_error, high_confidence_error_rate
-from src.models.checkpoints import load_model_checkpoint
+from src.models.checkpoints import load_model_checkpoint, validate_checkpoint_source
 from src.models.simple_cnn import SimpleCNN
 from src.utils.seeds import set_seed
 from src.utils.config import load_config
@@ -131,6 +131,17 @@ def main() -> None:
     print(f"Using device: {device}")
 
     model, metadata = load_evaluation_model(Path(config["checkpoint"]), device)
+    # make sure the checkpoint still matches the source recorded by this evaluation
+    validate_checkpoint_source(
+        metadata,
+        {
+            "dataset": config["dataset"],
+            "model": config["model"],
+            "seed": config["seed"]
+        },
+        "MNIST evaluation configuration"
+    )
+
     if "validation_accuracy" in metadata:
         print(f"Checkpoint validation accuracy: {metadata['validation_accuracy']:.4f}")
 

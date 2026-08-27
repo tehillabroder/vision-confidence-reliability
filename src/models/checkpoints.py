@@ -12,6 +12,11 @@ def save_model_checkpoint(model: nn.Module, checkpoint_path: Path, metadata: dic
         checkpoint_path
     )
 
+def validate_checkpoint_source(metadata: dict, expected_values: Mapping[str, object], context: str) -> None:
+    for name, expected_value in expected_values.items():
+        if metadata.get(name) != expected_value:
+            raise ValueError(f"Checkpoint metadata {name} does not match the {context}.")
+
 def load_model_checkpoint(model: nn.Module, checkpoint_path: Path, device: torch.device) -> dict:
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
