@@ -17,6 +17,7 @@ from src.models.checkpoints import load_model_checkpoint
 from src.models.gtsrb_models import build_gtsrb_model
 from src.utils.config import load_config
 from src.utils.seeds import set_seed
+from src.utils.outputs import check_output_paths
 
 
 def load_validation_model(checkpoint_path: Path, device: torch.device, model_name: str) -> tuple[nn.Module, dict]:
@@ -136,12 +137,16 @@ def validate_checkpoint_metadata(metadata: dict, config: dict, split_metadata: d
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build the GTSRB validation profile")
     parser.add_argument("--config", default="configs/gtsrb.yaml")
+    parser.add_argument("--overwrite", action="store_true", help="Allow the existing validation profile to be replaced.")
     args = parser.parse_args()
 
     config_path = Path(args.config)
     config = load_config(config_path)
     if config["dataset"] != "GTSRB":
         raise ValueError("GTSRB validation requires dataset GTSRB.")
+
+    output_path = Path(config["validation_profile"])
+    check_output_paths([output_path], overwrite=args.overwrite)
 
     training_config = config["training"]
     evaluation_config = config["evaluation"]
@@ -187,8 +192,8 @@ def main() -> None:
         rank_hcer_top_fraction=evaluation_config["rank_hcer_top_fraction"],
         split_metadata=split_metadata
     )
-    output_path = save_validation_profile(profile, Path(config["validation_profile"]))
-
+    output_path = save_validation_profile(profile, output_path)
+    
     print(f"Using device: {device}")
     print(f"Validation examples: {profile['validation_sample_count']}")
     print(f"Baseline accuracy: {profile['baseline_accuracy']:.4f}")

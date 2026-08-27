@@ -16,15 +16,20 @@ from src.models.checkpoints import load_model_checkpoint
 from src.models.simple_cnn import SimpleCNN
 from src.utils.config import load_config
 from src.utils.seeds import set_seed
+from src.utils.outputs import check_output_paths
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build the MNIST validation reference profile")
     parser.add_argument("--config", default="configs/mnist.yaml")
+    parser.add_argument("--overwrite", action="store_true", help="Allow the existing validation profile to be replaced.")
     args = parser.parse_args()
 
     config = load_config(Path(args.config))
     if config["dataset"] != "MNIST" or config["model"] != "SimpleCNN":
         raise ValueError("MNIST validation requires dataset MNIST and model SimpleCNN.")
+
+    output_path = Path(config["validation_profile"])
+    check_output_paths([output_path], overwrite=args.overwrite)
 
     training_config = config["training"]
     evaluation_config = config["evaluation"]
@@ -66,10 +71,7 @@ def main() -> None:
         fixed_hcer_threshold=evaluation_config["fixed_hcer_threshold"],
         adaptive_hcer_percentile=evaluation_config["adaptive_hcer_percentile"]
     )
-    output_path = save_validation_profile(
-        profile,
-        Path(config["validation_profile"])
-    )
+    output_path = save_validation_profile(profile, output_path)
 
     print(f"Baseline accuracy: {profile['baseline_accuracy']:.4f}")
     print(f"Baseline ECE: {profile['baseline_ece']:.4f}")

@@ -12,6 +12,7 @@ from src.models.checkpoints import save_model_checkpoint
 from src.models.simple_cnn import SimpleCNN
 from src.utils.seeds import set_seed
 from src.utils.config import load_config, save_config_copy
+from src.utils.outputs import check_output_paths
 
 def train_model(
     model: nn.Module,
@@ -101,12 +102,17 @@ def build_checkpoint_metadata(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the MNIST SimpleCNN checkpoint")
     parser.add_argument("--config", default="configs/mnist.yaml")
+    parser.add_argument("--overwrite", action="store_true", help="Allow existing checkpoint evidence to be replaced.")
     args = parser.parse_args()
 
     config_path = Path(args.config)
     config = load_config(config_path)
     if config["dataset"] != "MNIST" or config["model"] != "SimpleCNN":
         raise ValueError("MNIST training requires dataset MNIST and model SimpleCNN.")
+    
+    checkpoint_path = Path(config["checkpoint"])
+    config_copy_path = checkpoint_path.with_name(f"{checkpoint_path.stem}_config.yaml")
+    check_output_paths([checkpoint_path, config_copy_path], overwrite=args.overwrite)
 
     training_config = config["training"]
     set_seed(config["seed"])
@@ -146,8 +152,6 @@ def main() -> None:
     )
 
     validation_accuracy = calculate_accuracy(model, validation_loader, device)
-    checkpoint_path = Path(config["checkpoint"])
-    config_copy_path = checkpoint_path.with_name(f"{checkpoint_path.stem}_config.yaml")
 
     metadata = build_checkpoint_metadata(
         config=config,

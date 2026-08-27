@@ -9,13 +9,20 @@ import torch.nn as nn
 from sklearn.metrics import balanced_accuracy_score
 from torch.utils.data import DataLoader
 from src.datasets.gtsrb import GTSRB_CLASS_COUNT, build_gtsrb_test_dataset
-from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs, validate_evaluation_settings
+from src.evaluation.runner import (
+    build_calibration_rows, build_core_evaluation_output_paths, build_experiment_conditions,
+    collect_prediction_rows, save_core_evaluation_outputs, validate_evaluation_settings
+)
 from src.evaluation.validation_profile import load_validation_profile, validate_validation_profile_source
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
-from src.metrics.reliability import expected_calibration_error, high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
+from src.metrics.reliability import (
+    expected_calibration_error, high_confidence_coverage, high_confidence_error_rate, 
+    rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
+)
 from src.models.checkpoints import load_model_checkpoint
 from src.models.gtsrb_models import build_gtsrb_model
 from src.utils.config import load_config
+from src.utils.outputs import check_output_paths
 from src.datasets.gtsrb_split import validate_gtsrb_split_metadata
 from src.utils.seeds import set_seed
 
@@ -237,12 +244,17 @@ def load_evaluation_model(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run GTSRB degradation evaluation")
     parser.add_argument("--config", default="configs/gtsrb.yaml")
+    parser.add_argument("--overwrite", action="store_true", help="Allow existing evaluation evidence to be replaced.")
     args = parser.parse_args()
 
     config_path = Path(args.config)
     config = load_config(config_path)
     if config["dataset"] != "GTSRB":
         raise ValueError("GTSRB evaluation requires dataset GTSRB.")
+
+    output_dir = Path(config["output_dir"])
+    output_paths = build_core_evaluation_output_paths(output_dir)
+    check_output_paths([*output_paths.values(), output_dir / "split_metadata.json"], overwrite=args.overwrite)
 
     evaluation_config = config["evaluation"]
 
@@ -312,7 +324,7 @@ def main() -> None:
         calibration_rows=calibration_rows,
         split_metadata=split_metadata,
         config_path=config_path,
-        output_dir=Path(config["output_dir"])
+        output_dir=output_dir
     )
 
     print(f"Saved predictions to {paths['predictions']}")

@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 from src.reporting.model_comparison import build_model_comparison, build_trust_transition_comparison, save_model_comparison_plots
 from src.utils.config import load_config
+from src.utils.outputs import check_output_paths
 
 def _load_trust_records(path: Path) -> list[dict]:
     if not path.exists():
@@ -43,7 +44,22 @@ def main() -> None:
     parser.add_argument("--baseline-config", default="configs/gtsrb.yaml")
     parser.add_argument("--stronger-config", default="configs/gtsrb_resnet18.yaml")
     parser.add_argument("--output-dir", default="results/gtsrb_model_comparison")
+    parser.add_argument("--overwrite", action="store_true", help="Allow existing comparison evidence to be replaced.")
     args = parser.parse_args()
+
+    output_dir = Path(args.output_dir)
+    plots_dir = output_dir / "plots"
+    comparison_path = output_dir / "model_comparison.csv"
+    trust_path = output_dir / "trust_transition_comparison.csv"
+    expected_plot_paths = [
+        plots_dir / "accuracy_model_comparison.png",
+        plots_dir / "balanced_accuracy_model_comparison.png",
+        plots_dir / "mean_confidence_model_comparison.png",
+        plots_dir / "confidence_accuracy_gap_model_comparison.png",
+        plots_dir / "ece_model_comparison.png",
+        plots_dir / "hcer_fixed_model_comparison.png"
+    ]
+    check_output_paths([comparison_path, trust_path, *expected_plot_paths], overwrite=args.overwrite)
 
     # pull in both configs and their saved runs
     baseline_config, baseline_metrics, baseline_trust = _load_evidence(Path(args.baseline_config))
@@ -55,12 +71,8 @@ def main() -> None:
 
     comparison = build_model_comparison(baseline_metrics, stronger_metrics)
     trust_comparison = build_trust_transition_comparison(baseline_trust, stronger_trust)
-    output_dir = Path(args.output_dir)
-    plots_dir = output_dir / "plots"
-    output_dir.mkdir(parents=True, exist_ok=True)
 
-    comparison_path = output_dir / "model_comparison.csv"
-    trust_path = output_dir / "trust_transition_comparison.csv"
+    output_dir.mkdir(parents=True, exist_ok=True)
     comparison.to_csv(comparison_path, index=False)
     trust_comparison.to_csv(trust_path, index=False)
     plot_paths = save_model_comparison_plots(baseline_metrics, stronger_metrics, plots_dir)

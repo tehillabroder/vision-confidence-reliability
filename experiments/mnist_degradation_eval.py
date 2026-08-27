@@ -8,15 +8,18 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from src.datasets.mnist import DegradedMNIST
-from src.evaluation.runner import build_calibration_rows, build_experiment_conditions, collect_prediction_rows, save_core_evaluation_outputs, validate_evaluation_settings
+from src.evaluation.runner import (
+    build_calibration_rows, build_core_evaluation_output_paths, build_experiment_conditions,
+    collect_prediction_rows, save_core_evaluation_outputs, validate_evaluation_settings
+) 
 from src.metrics.basic import accuracy_from_correct, confidence_accuracy_gap, mean_confidence
 from src.metrics.reliability import expected_calibration_error, high_confidence_error_rate
 from src.models.checkpoints import load_model_checkpoint
 from src.models.simple_cnn import SimpleCNN
 from src.utils.seeds import set_seed
 from src.utils.config import load_config
+from src.utils.outputs import check_output_paths
 from src.evaluation.validation_profile import load_validation_profile, validate_validation_profile_source
-
     
 def evaluate_condition(
     model: nn.Module,
@@ -96,12 +99,17 @@ def load_evaluation_model(
 def main() -> None:
     parser = argparse.ArgumentParser(description="MNIST degradation evaluation")
     parser.add_argument("--config", default="configs/mnist.yaml")
+    parser.add_argument("--overwrite", action="store_true", help="Allow existing evaluation evidence to be replaced.")
     args = parser.parse_args()
 
     config_path = Path(args.config)
     config = load_config(config_path)
     if config["dataset"] != "MNIST" or config["model"] != "SimpleCNN":
         raise ValueError("MNIST evaluation requires dataset MNIST and model SimpleCNN.")
+
+    output_path = Path(config["output_dir"])
+    output_paths = build_core_evaluation_output_paths(output_path)
+    check_output_paths(output_paths.values(), overwrite=args.overwrite)
 
     evaluation_config = config["evaluation"]
     validation_profile = load_validation_profile(Path(config["validation_profile"]))
@@ -118,8 +126,6 @@ def main() -> None:
     adaptive_hcer_threshold = validation_profile["adaptive_hcer_threshold"]
     validate_evaluation_settings(evaluation_config["ece_bins"], evaluation_config["fixed_hcer_threshold"], adaptive_hcer_threshold)
     set_seed(config["seed"])
-
-    output_path = Path(config["output_dir"])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")

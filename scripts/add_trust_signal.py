@@ -3,11 +3,12 @@
 import argparse
 import json
 from pathlib import Path
-
 import pandas as pd
 
 from src.evaluation.trust_signal import assign_trust_signal
 from src.utils.config import load_config
+from src.utils.outputs import check_output_paths
+
 REQUIRED_METRIC_COLUMNS = {
     "dataset",
     "model",
@@ -44,6 +45,7 @@ def build_trust_records(metrics_df: pd.DataFrame, trust_policy: dict) -> list[di
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create trust signals from experiment metrics")
     parser.add_argument("--config", default="configs/mnist.yaml")
+    parser.add_argument("--overwrite", action="store_true", help="Allow the existing trust output to be replaced.")
     args = parser.parse_args()
 
     config = load_config(Path(args.config))
@@ -53,6 +55,8 @@ def main() -> None:
 
     if not metrics_path.exists():
         raise FileNotFoundError(f"Metrics summary not found: {metrics_path}")
+
+    check_output_paths([output_path], overwrite=args.overwrite)
 
     metrics_df = pd.read_csv(metrics_path)
     trust_records = build_trust_records(metrics_df, config["trust_policy"])

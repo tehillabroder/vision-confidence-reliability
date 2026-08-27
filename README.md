@@ -452,6 +452,8 @@ Trust generation adds:
 trust_signal.json
 ```
 
+Training, validation-profile, degradation-evaluation, trust and model-comparison commands refuse to replace existing evidence by default. Add `--overwrite` when replacement is intentional.
+
 ### Prediction-level results
 
 `predictions.csv` includes:
