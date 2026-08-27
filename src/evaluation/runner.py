@@ -45,6 +45,14 @@ def validate_evaluation_settings(ece_bins: int, fixed_hcer_threshold: float, ada
     if not 0.0 <= adaptive_hcer_threshold <= 1.0:
         raise ValueError("Adaptive HCER threshold must be between 0 and 1.")
 
+def build_core_evaluation_output_paths(output_dir: Path) -> dict[str, Path]:
+    return {
+        "predictions": output_dir / "predictions.csv",
+        "metrics": output_dir / "metrics_summary.csv",
+        "calibration": output_dir / "calibration_bins.csv",
+        "config": output_dir / "config.yaml"
+    }
+
 def save_core_evaluation_outputs(
     prediction_rows: list[dict],
     metric_rows: list[dict],
@@ -56,12 +64,7 @@ def save_core_evaluation_outputs(
         raise ValueError("Evaluation outputs must not be empty.")
     
     output_dir.mkdir(parents=True, exist_ok=True)
-    paths = {
-        "predictions": output_dir / "predictions.csv",
-        "metrics": output_dir / "metrics_summary.csv",
-        "calibration": output_dir / "calibration_bins.csv",
-        "config": output_dir / "config.yaml"
-    }
+    paths = build_core_evaluation_output_paths(output_dir)
 
     pd.DataFrame(prediction_rows).to_csv(paths["predictions"], index=False)
     pd.DataFrame(metric_rows).to_csv(paths["metrics"], index=False)

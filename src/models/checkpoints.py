@@ -30,8 +30,6 @@ def load_model_checkpoint(model: nn.Module, checkpoint_path: Path, device: torch
 
     metadata = checkpoint.get("metadata", {})
 
-    metadata = checkpoint.get("metadata", {})
-
     if not isinstance(metadata, dict):
         raise ValueError("Checkpoint metadata must be a dictionary.")
 
