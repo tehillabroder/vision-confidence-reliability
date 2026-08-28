@@ -1,6 +1,8 @@
 """Reliability metrics for confidence evaluation."""
 
+from __future__ import annotations
 import numpy as np
+from sklearn.metrics import roc_auc_score
 
 def _validate_confidences(confidences) -> np.ndarray:
     confidence_array = np.asarray(confidences, dtype=float)
@@ -66,6 +68,28 @@ def high_confidence_coverage(confidences, threshold: float = 0.90) -> float:
     confidence_array = _validate_confidences(confidences)
     _validate_threshold(threshold)
     return float((confidence_array >= threshold).mean())
+
+def conditional_high_confidence_error_rate(correct, confidences, threshold: float = 0.90) -> float | None:
+    correct_array, confidence_array = _validate_prediction_inputs(correct, confidences)
+    _validate_threshold(threshold)
+    selected = confidence_array >= threshold
+
+    # no conditional error exists when no prediction reaches the threshold
+    if not np.any(selected):
+        return None
+
+    return float((correct_array[selected] == 0).mean())
+
+def failure_detection_auroc(correct, confidences) -> float | None:
+    correct_array, confidence_array = _validate_prediction_inputs(correct, confidences)
+    failure = 1.0 - correct_array
+
+    # the ranking is undefined when only one prediction outcome is present
+    if np.unique(failure).size != 2:
+        return None
+
+    # lower confidence should rank failed predictions above successful ones
+    return float(roc_auc_score(failure, 1.0 - confidence_array))
 
 def _rank_based_selection_mask(confidences, top_fraction: float) -> np.ndarray:
     confidence_array = _validate_confidences(confidences)

@@ -59,6 +59,8 @@ def test_build_trust_records_uses_one_shared_baseline():
     assert records[0]["gap_direction"] == "unchanged"
     assert records[0]["triggered_rule_explanations"] == []
     assert records[1]["trust_signal"] == "caution"
+    assert records[1]["performance_signal"] == "caution"
+    assert records[1]["confidence_signal"] == "trust"
     assert records[1]["triggered_rules"] == ["caution_relative_error_increase"]
     assert len(records[1]["triggered_rule_explanations"]) == 1
 

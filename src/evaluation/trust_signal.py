@@ -1,9 +1,17 @@
-"""
-Create baseline-relative trust signals.
-This is an experimental warning signal, not a safety guarantee.
-"""
+"""Create baseline-relative trust signals, not safety guarantees."""
+
 from __future__ import annotations
 from src.utils.config import TRUST_METRICS
+
+PERFORMANCE_METRICS = (
+    "absolute_accuracy_drop",
+    "relative_error_increase"
+)
+CONFIDENCE_METRICS = (
+    "ece_increase",
+    "gap_deterioration",
+    "fixed_hcer_increase"
+)
 RULE_LABELS = {
     "absolute_accuracy_drop": "absolute accuracy drop",
     "relative_error_increase": "relative error increase",
@@ -90,52 +98,56 @@ def _build_rule_explanations(
 
     return explanations
 
-def assign_trust_signal(condition_metrics: dict, baseline_metrics: dict, trust_policy: dict) -> dict:
-
-    deterioration = calculate_deterioration(condition_metrics, baseline_metrics, trust_policy["error_denominator_floor"])
-    active_metrics = trust_policy.get("active_metrics", TRUST_METRICS)
+def _build_signal_attribution(deterioration: dict, trust_policy: dict, active_metrics: list[str] | tuple[str, ...]) -> dict:
     do_not_trust_metrics = _find_triggered_metrics(deterioration, trust_policy["do_not_trust"], active_metrics)
 
     # one severe rule is enough to justify the strongest warning
     if do_not_trust_metrics:
         signal = "do_not_trust"
         triggered_metrics = do_not_trust_metrics
-        triggered_thresholds = trust_policy["do_not_trust"]
+        thresholds = trust_policy["do_not_trust"]
     else:
-        caution_metrics = _find_triggered_metrics(
-            deterioration,
-            trust_policy["caution"], 
-            active_metrics
-        )
+        caution_metrics = _find_triggered_metrics(deterioration, trust_policy["caution"], active_metrics)
         if caution_metrics:
             signal = "caution"
             triggered_metrics = caution_metrics
-            triggered_thresholds = trust_policy["caution"]
+            thresholds = trust_policy["caution"]
         else:
             signal = "trust"
             triggered_metrics = []
-            triggered_thresholds = {}
+            thresholds = {}
 
-    # keep stable rule names for analysis and separate explanations for readers
-    triggered_rules = [
-        f"{signal}_{metric}"
-        for metric in triggered_metrics
-    ]
-    triggered_rule_explanations = _build_rule_explanations(
-        deterioration,
-        triggered_thresholds,
-        signal,
-        triggered_metrics
-    )
+    return {
+        "signal": signal,
+        "triggered_rules": [f"{signal}_{metric}" for metric in triggered_metrics],
+        "triggered_rule_explanations": _build_rule_explanations(deterioration, thresholds, signal, triggered_metrics)
+    }
+
+def assign_trust_signal(condition_metrics: dict, baseline_metrics: dict, trust_policy: dict) -> dict:
+    deterioration = calculate_deterioration(condition_metrics, baseline_metrics, trust_policy["error_denominator_floor"])
+    active_metrics = trust_policy.get("active_metrics", TRUST_METRICS)
+
+    # both channels remain relative to the same undegraded baseline
+    performance_metrics = [metric for metric in active_metrics if metric in PERFORMANCE_METRICS]
+    confidence_metrics = [metric for metric in active_metrics if metric in CONFIDENCE_METRICS]
+    overall = _build_signal_attribution(deterioration, trust_policy, active_metrics)
+    performance = _build_signal_attribution(deterioration, trust_policy, performance_metrics)
+    confidence = _build_signal_attribution(deterioration, trust_policy, confidence_metrics)
 
     return {
         "dataset": condition_metrics["dataset"],
         "model": condition_metrics["model"],
         "degradation": condition_metrics["degradation"],
         "severity": int(condition_metrics["severity"]),
-        "trust_signal": signal,
-        "triggered_rules": triggered_rules,
-        "triggered_rule_explanations": triggered_rule_explanations,
+        "trust_signal": overall["signal"],
+        "performance_signal": performance["signal"],
+        "confidence_signal": confidence["signal"],
+        "triggered_rules": overall["triggered_rules"],
+        "triggered_rule_explanations": overall["triggered_rule_explanations"],
+        "performance_triggered_rules": performance["triggered_rules"],
+        "performance_triggered_rule_explanations": performance["triggered_rule_explanations"],
+        "confidence_triggered_rules": confidence["triggered_rules"],
+        "confidence_triggered_rule_explanations": confidence["triggered_rule_explanations"],
         "hcer_fixed": float(condition_metrics["hcer_fixed"]),
         "hcer_adaptive": float(condition_metrics["hcer_adaptive"]),
         **deterioration

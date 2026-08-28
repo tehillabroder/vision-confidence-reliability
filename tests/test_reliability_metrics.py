@@ -1,8 +1,12 @@
 """Unit tests for calibration and reliability metrics."""
 
+from __future__ import annotations
 import pytest
 from src.metrics.basic import confidence_accuracy_gap
-from src.metrics.reliability import calibration_bins, expected_calibration_error, high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
+from src.metrics.reliability import (
+    calibration_bins, conditional_high_confidence_error_rate, expected_calibration_error, failure_detection_auroc,
+    high_confidence_coverage, high_confidence_error_rate, rank_based_high_confidence_coverage, rank_based_high_confidence_error_rate
+)
 
 def test_ece_is_zero_for_perfect_confident_predictions():
     # a perfectly confident and correct model should have zero calibration error
@@ -60,19 +64,19 @@ def test_ece_handles_empty_bins_gracefully():
     ece = expected_calibration_error(correct, confidences, n_bins=10)
     assert ece == pytest.approx(0.9)
 
-@pytest.mark.parametrize("metric", [expected_calibration_error, high_confidence_error_rate, calibration_bins])
+@pytest.mark.parametrize("metric", [expected_calibration_error, high_confidence_error_rate, conditional_high_confidence_error_rate, failure_detection_auroc, calibration_bins])
 def test_prediction_metrics_reject_mismatched_lengths(metric):
     # reliability metrics must not use prediction arrays that are out of sync
     with pytest.raises(ValueError, match="same length"):
         metric([1, 0], [0.9])
 
-@pytest.mark.parametrize("metric", [expected_calibration_error, high_confidence_error_rate, calibration_bins])
+@pytest.mark.parametrize("metric", [expected_calibration_error, high_confidence_error_rate, conditional_high_confidence_error_rate, failure_detection_auroc, calibration_bins])
 def test_prediction_metrics_reject_empty_inputs(metric):
     # checks that condition metrics cannot be calculated without predictions
     with pytest.raises(ValueError):
         metric([], [])
 
-@pytest.mark.parametrize("metric", [expected_calibration_error, high_confidence_error_rate, calibration_bins])
+@pytest.mark.parametrize("metric", [expected_calibration_error, high_confidence_error_rate, conditional_high_confidence_error_rate, failure_detection_auroc, calibration_bins])
 def test_prediction_metrics_reject_invalid_confidences(metric):
     # check confidence values remain valid probabilities
     with pytest.raises(ValueError, match="between 0 and 1"):
@@ -92,3 +96,36 @@ def test_rank_based_hcer_rejects_invalid_correctness():
     # ensure ranked HCER still requires binary correctness values
     with pytest.raises(ValueError, match="0 or 1"):
         rank_based_high_confidence_error_rate([2, 0], [0.9, 0.8])
+
+def test_fixed_hcer_is_coverage_times_conditional_error():
+    # confirm the two context measures explain the existing fixed HCER
+    correct = [1, 0, 0, 1]
+    confidences = [0.95, 0.92, 0.40, 0.80]
+
+    hcer = high_confidence_error_rate(correct, confidences, threshold=0.90)
+    coverage = high_confidence_coverage(confidences, threshold=0.90)
+    conditional_error = conditional_high_confidence_error_rate(correct, confidences, threshold=0.90)
+
+    assert coverage == pytest.approx(0.50)
+    assert conditional_error == pytest.approx(0.50)
+    assert hcer == pytest.approx(coverage * conditional_error)
+
+def test_conditional_high_confidence_error_is_undefined_without_coverage():
+    # avoid reporting a misleading zero when no prediction reaches the threshold
+    assert conditional_high_confidence_error_rate([1, 0], [0.80, 0.70], threshold=0.90) is None
+
+def test_failure_detection_auroc_is_one_for_perfect_ranking():
+    # lower confidence ranks every failed prediction below every successful one
+    correct = [1, 1, 0, 0]
+    confidences = [0.90, 0.80, 0.30, 0.20]
+    assert failure_detection_auroc(correct, confidences) == pytest.approx(1.0)
+
+def test_failure_detection_auroc_is_zero_for_reversed_ranking():
+    # high confidence on every failure produces the worst possible ordering
+    correct = [1, 1, 0, 0]
+    confidences = [0.20, 0.30, 0.80, 0.90]
+    assert failure_detection_auroc(correct, confidences) == pytest.approx(0.0)
+
+def test_failure_detection_auroc_is_undefined_with_one_outcome():
+    # avoid inventing a ranking score when every prediction has the same outcome
+    assert failure_detection_auroc([1, 1], [0.90, 0.80]) is None

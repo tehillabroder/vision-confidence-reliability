@@ -61,6 +61,8 @@ def test_trust_signal_returns_trust_for_small_change():
     assert result["trust_signal"] == "trust"
     assert result["triggered_rules"] == []
     assert result["triggered_rule_explanations"] == []
+    assert result["performance_signal"] == "trust"
+    assert result["confidence_signal"] == "trust"
 
 def test_trust_signal_uses_relative_error_increase():
     # confirm doubled error can warn before a large accuracy drop develops
@@ -72,6 +74,9 @@ def test_trust_signal_uses_relative_error_increase():
     assert result["relative_error_increase"] == pytest.approx(1.5)
     assert result["triggered_rules"] == ["caution_relative_error_increase"]
     assert result["triggered_rule_explanations"] == ["relative error increase was 1.5000, meeting the caution threshold of 1.0000."]
+    assert result["performance_signal"] == "caution"
+    assert result["confidence_signal"] == "trust"
+    assert result["performance_triggered_rules"] == ["caution_relative_error_increase"]
 
 def test_trust_signal_prioritises_do_not_trust_rules():
     # ensure one severe deterioration receives the strongest warning
@@ -82,6 +87,8 @@ def test_trust_signal_prioritises_do_not_trust_rules():
     assert result["triggered_rule_explanations"] == [
         "ECE increase was 0.0900, meeting the do not trust threshold of 0.0800."
     ]
+    assert result["performance_signal"] == "trust"
+    assert result["confidence_signal"] == "do_not_trust"
 
 def test_trust_signal_detects_worsening_underconfidence():
     # confirm gap magnitude detects deterioration below zero
@@ -172,3 +179,15 @@ def test_trust_signal_ignores_inactive_adaptive_hcer():
     assert result["adaptive_hcer_increase"] == pytest.approx(0.498)
     assert result["trust_signal"] == "trust"
     assert result["triggered_rules"] == []
+    assert result["confidence_signal"] == "trust"
+
+def test_trust_signal_exposes_different_channel_strengths():
+    # show when severe performance loss coexists with milder confidence deterioration
+    condition = condition_metrics(accuracy=0.90, ece=0.06)
+    result = assign_trust_signal(condition, UNDEGRADED_BASELINE, TRUST_POLICY)
+
+    assert result["performance_signal"] == "do_not_trust"
+    assert result["confidence_signal"] == "caution"
+    assert result["trust_signal"] == "do_not_trust"
+    assert result["performance_triggered_rules"] == ["do_not_trust_relative_error_increase"]
+    assert result["confidence_triggered_rules"] == ["caution_ece_increase"]
