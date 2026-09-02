@@ -5,8 +5,9 @@ import pandas as pd
 import pytest
 from src.evaluation.trust_signal import assign_trust_signal
 from src.reporting.evidence_analysis import (
-    build_class_failure_summary, build_confidence_diagnostics, build_paired_model_failures,
-    build_prediction_confidence_transitions, build_trust_rule_ablation, build_trust_rule_attribution
+    build_bootstrap_uncertainty, build_class_failure_summary, build_confidence_diagnostics,
+    build_paired_model_failures, build_prediction_confidence_transitions,
+    build_trust_rule_ablation, build_trust_rule_attribution
 )
 
 TRUST_POLICY = {
@@ -47,6 +48,74 @@ def prediction_frame(model: str, predicted_labels: list[int], correct: list[int]
         "degradation": ["noise"] * 4,
         "severity": [5] * 4
     })
+
+def bootstrap_prediction_frame(
+    model: str,
+    severity_four_correct: list[int],
+    severity_four_confidences: list[float],
+    severity_five_correct: list[int],
+    severity_five_confidences: list[float]
+) -> pd.DataFrame:
+    rows = []
+    true_labels = [0] * 10 + [1] * 10
+    conditions = [
+        (4, severity_four_correct, severity_four_confidences),
+        (5, severity_five_correct, severity_five_confidences)
+    ]
+
+    for severity, correct, confidences in conditions:
+        for image_id, values in enumerate(zip(true_labels, correct, confidences)):
+            true_label, is_correct, confidence = values
+            rows.append({
+                "dataset": "GTSRB",
+                "model": model,
+                "seed": 42,
+                "image_id": image_id,
+                "true_label": true_label,
+                "predicted_label": true_label if is_correct else 2,
+                "correct": is_correct,
+                "confidence": confidence,
+                "degradation": "noise",
+                "severity": severity
+            })
+
+    return pd.DataFrame(rows)
+
+def bootstrap_prediction_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
+    # use simple hand-checkable values with known accuracy, AUROC and persistent-error changes
+    baseline_correct = [1] * 10 + [0] * 10
+    baseline_confidences = (
+        [0.90] * 5
+        + [0.40] * 5
+        + [0.80] * 5
+        + [0.30] * 5
+    )
+    stronger_severity_four_correct = [1] * 14 + [0] * 6
+    stronger_severity_four_confidences = (
+        [0.95] * 14
+        + [0.10, 0.20, 0.30, 0.40, 0.50, 0.60]
+    )
+    stronger_severity_five_correct = [1] * 12 + [0] * 8
+    stronger_severity_five_confidences = (
+        [0.99] * 12
+        + [0.05, 0.08, 0.20, 0.25, 0.25, 0.30, 0.70, 0.90]
+    )
+
+    baseline = bootstrap_prediction_frame(
+        "Baseline",
+        baseline_correct,
+        baseline_confidences,
+        baseline_correct,
+        baseline_confidences
+    )
+    stronger = bootstrap_prediction_frame(
+        "Stronger",
+        stronger_severity_four_correct,
+        stronger_severity_four_confidences,
+        stronger_severity_five_correct,
+        stronger_severity_five_confidences
+    )
+    return baseline, stronger
 
 def trust_metrics_frame() -> pd.DataFrame:
     return pd.DataFrame([
@@ -224,3 +293,66 @@ def test_prediction_confidence_transitions_requires_matching_images():
 
     with pytest.raises(ValueError, match="same images and true labels"):
         build_prediction_confidence_transitions(predictions)
+
+def test_bootstrap_uncertainty_estimates_selected_paired_findings():
+    # check the selected findings against handchecked paired values
+    baseline, stronger = bootstrap_prediction_frames()
+    result = build_bootstrap_uncertainty(
+        baseline,
+        stronger,
+        bootstrap_replicates=100,
+        bootstrap_seed=7
+    )
+    by_analysis = result.set_index("analysis")
+
+    assert result["analysis"].tolist() == [
+        "accuracy_difference",
+        "failure_detection_auroc_difference",
+        "persistent_error_mean_confidence_change"
+    ]
+    assert by_analysis.loc["accuracy_difference", "estimate"] == pytest.approx(0.10)
+    assert by_analysis.loc["failure_detection_auroc_difference", "estimate"] == pytest.approx(0.25)
+    assert by_analysis.loc["persistent_error_mean_confidence_change", "estimate"] == pytest.approx(1 / 12)
+    assert by_analysis.loc["accuracy_difference", "num_images"] == 20
+    assert by_analysis.loc["persistent_error_mean_confidence_change", "num_images"] == 6
+    assert result["comparison"].iloc[0] == "Stronger minus Baseline"
+    assert result["confidence_level"].eq(0.95).all()
+    assert result["ci_method"].eq("paired_percentile_bootstrap").all()
+    assert result["resampling_unit"].eq("image_id").all()
+    assert (result["ci_lower"] <= result["ci_upper"]).all()
+
+def test_bootstrap_uncertainty_is_repeatable():
+    # ensure the fixed bootstrap seed reproduces the same intervals
+    baseline, stronger = bootstrap_prediction_frames()
+
+    first = build_bootstrap_uncertainty(
+        baseline,
+        stronger,
+        bootstrap_replicates=50,
+        bootstrap_seed=23
+    )
+    second = build_bootstrap_uncertainty(
+        baseline,
+        stronger,
+        bootstrap_replicates=50,
+        bootstrap_seed=23
+    )
+
+    pd.testing.assert_frame_equal(first, second)
+
+def test_bootstrap_uncertainty_requires_matching_image_ids():
+    # keep paired resampling from silently using different image sets
+    baseline, stronger = bootstrap_prediction_frames()
+    missing_row = (
+        (stronger["severity"] == 5)
+        & (stronger["image_id"] == 19)
+    )
+    stronger = stronger[~missing_row]
+
+    with pytest.raises(ValueError, match="identical image IDs"):
+        build_bootstrap_uncertainty(
+            baseline,
+            stronger,
+            bootstrap_replicates=20,
+            bootstrap_seed=7
+        )

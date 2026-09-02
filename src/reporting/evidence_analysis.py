@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import json
+import numpy as np
 import pandas as pd
 from src.evaluation.trust_signal import CONFIDENCE_METRICS, PERFORMANCE_METRICS, RULE_LABELS, assign_trust_signal
 from src.metrics.reliability import conditional_high_confidence_error_rate, failure_detection_auroc, high_confidence_coverage
@@ -16,6 +17,9 @@ CONFIDENCE_METRIC_COLUMNS = {
     "fixed_hcer_threshold", "num_examples"
 }
 DEGRADATION_ORDER = ("none", "blur", "noise", "low_light")
+
+# use the conventional 95% level so the selected findings have a clear, standard uncertainty range
+BOOTSTRAP_CONFIDENCE_LEVEL = 0.95
 
 def _require_columns(frame: pd.DataFrame, required: set[str], name: str) -> None:
     missing = required.difference(frame.columns)
@@ -367,6 +371,183 @@ def build_prediction_confidence_transitions(predictions: pd.DataFrame) -> pd.Dat
     result["degradation"] = pd.Categorical(result["degradation"], categories=DEGRADATION_ORDER, ordered=True)
 
     return result.sort_values(["model", "degradation", "from_severity"]).reset_index(drop=True)
+
+def _validate_bootstrap_settings(bootstrap_replicates: int, bootstrap_seed: int) -> None:
+    if isinstance(bootstrap_replicates, bool) or not isinstance(bootstrap_replicates, int) or bootstrap_replicates <= 0:
+        raise ValueError("Bootstrap replicate count must be a positive integer.")
+    if isinstance(bootstrap_seed, bool) or not isinstance(bootstrap_seed, int) or bootstrap_seed < 0:
+        raise ValueError("Bootstrap seed must be a non-negative integer.")
+
+def _percentile_interval(estimates: np.ndarray) -> tuple[float, float]:
+    tail_probability = (1.0 - BOOTSTRAP_CONFIDENCE_LEVEL) / 2.0
+    lower, upper = np.quantile(estimates, [tail_probability, 1.0 - tail_probability])
+    return float(lower), float(upper)
+
+def build_bootstrap_uncertainty(
+    baseline_predictions: pd.DataFrame,
+    stronger_predictions: pd.DataFrame,
+    bootstrap_replicates: int = 5000,
+    bootstrap_seed: int = 42
+) -> pd.DataFrame:
+    """Estimate uncertainty for the selected paired GTSRB findings."""
+    _validate_bootstrap_settings(bootstrap_replicates, bootstrap_seed)
+    _require_columns(baseline_predictions, PREDICTION_REQUIRED_COLUMNS, "Baseline predictions")
+    _require_columns(stronger_predictions, PREDICTION_REQUIRED_COLUMNS, "Stronger-model predictions")
+    baseline_model = _single_model(baseline_predictions, "Baseline predictions")
+    stronger_model = _single_model(stronger_predictions, "Stronger-model predictions")
+
+    baseline_severe = baseline_predictions[
+        (baseline_predictions["degradation"] == "noise")
+        & (baseline_predictions["severity"] == 5)
+    ]
+    stronger_severe = stronger_predictions[
+        (stronger_predictions["degradation"] == "noise")
+        & (stronger_predictions["severity"] == 5)
+    ]
+
+    if baseline_severe.empty or stronger_severe.empty:
+        raise ValueError("Bootstrap analysis requires noise severity 5 predictions for both models.")
+
+    paired, _, _ = _pair_predictions(baseline_severe, stronger_severe)
+    if len(paired[["dataset", "seed"]].drop_duplicates()) != 1:
+        raise ValueError("Bootstrap analysis requires one dataset and evaluation seed.")
+
+    dataset = str(paired.iloc[0]["dataset"])
+    evaluation_seed = int(paired.iloc[0]["seed"])
+    baseline_correct = paired["correct_baseline"].to_numpy(dtype=int)
+    stronger_correct = paired["correct_stronger"].to_numpy(dtype=int)
+    baseline_confidence = paired["confidence_baseline"].to_numpy(dtype=float)
+    stronger_confidence = paired["confidence_stronger"].to_numpy(dtype=float)
+    num_images = len(paired)
+
+    baseline_auroc = failure_detection_auroc(baseline_correct, baseline_confidence)
+    stronger_auroc = failure_detection_auroc(stronger_correct, stronger_confidence)
+    if baseline_auroc is None or stronger_auroc is None:
+        raise ValueError("Failure-detection AUROC requires both correct and wrong predictions for each model.")
+
+    rng = np.random.default_rng(bootstrap_seed)
+    accuracy_differences = np.empty(bootstrap_replicates)
+    auroc_differences = np.empty(bootstrap_replicates)
+
+    # use the same sampled image positions for both models in every replicate
+    for bootstrap_index in range(bootstrap_replicates):
+        sampled_indices = rng.integers(0, num_images, size=num_images)
+        sampled_baseline_auroc = failure_detection_auroc(
+            baseline_correct[sampled_indices],
+            baseline_confidence[sampled_indices]
+        )
+        sampled_stronger_auroc = failure_detection_auroc(
+            stronger_correct[sampled_indices],
+            stronger_confidence[sampled_indices]
+        )
+
+        if sampled_baseline_auroc is None or sampled_stronger_auroc is None:
+            raise ValueError(
+                "A bootstrap sample contained only one prediction outcome, "
+                "so failure-detection AUROC was undefined."
+            )
+
+        accuracy_differences[bootstrap_index] = (
+            stronger_correct[sampled_indices].mean()
+            - baseline_correct[sampled_indices].mean()
+        )
+        auroc_differences[bootstrap_index] = sampled_stronger_auroc - sampled_baseline_auroc
+
+    from_rows = stronger_predictions[
+        (stronger_predictions["degradation"] == "noise")
+        & (stronger_predictions["severity"] == 4)
+    ]
+    to_rows = stronger_predictions[
+        (stronger_predictions["degradation"] == "noise")
+        & (stronger_predictions["severity"] == 5)
+    ]
+
+    if from_rows.empty or to_rows.empty:
+        raise ValueError("Bootstrap analysis requires stronger-model noise severities 4 and 5.")
+
+    pair_columns = ["dataset", "seed", "image_id", "true_label"]
+    paired_transition = from_rows[pair_columns + ["correct", "confidence"]].merge(
+        to_rows[pair_columns + ["correct", "confidence"]],
+        on=pair_columns,
+        how="outer",
+        suffixes=("_from", "_to"),
+        indicator=True,
+        validate="one_to_one"
+    )
+
+    if not paired_transition["_merge"].eq("both").all():
+        raise ValueError("Noise severities 4 and 5 must contain the same images and true labels.")
+    if paired_transition["dataset"].drop_duplicates().tolist() != [dataset]:
+        raise ValueError("Bootstrap analyses must use the same dataset.")
+    if paired_transition["seed"].drop_duplicates().tolist() != [evaluation_seed]:
+        raise ValueError("Bootstrap analyses must use the same evaluation seed.")
+
+    wrong_at_both = (
+        paired_transition["correct_from"].eq(0)
+        & paired_transition["correct_to"].eq(0)
+    )
+    persistent_confidence_changes = (
+        paired_transition.loc[wrong_at_both, "confidence_to"]
+        - paired_transition.loc[wrong_at_both, "confidence_from"]
+    ).to_numpy(dtype=float)
+
+    if persistent_confidence_changes.size == 0:
+        raise ValueError("No images were wrong at both noise severities 4 and 5.")
+
+    transition_differences = np.empty(bootstrap_replicates)
+    for bootstrap_index in range(bootstrap_replicates):
+        sampled_indices = rng.integers(
+            0,
+            persistent_confidence_changes.size,
+            size=persistent_confidence_changes.size
+        )
+        transition_differences[bootstrap_index] = persistent_confidence_changes[sampled_indices].mean()
+
+    accuracy_lower, accuracy_upper = _percentile_interval(accuracy_differences)
+    auroc_lower, auroc_upper = _percentile_interval(auroc_differences)
+    transition_lower, transition_upper = _percentile_interval(transition_differences)
+    common = {
+        "dataset": dataset,
+        "evaluation_seed": evaluation_seed,
+        "confidence_level": BOOTSTRAP_CONFIDENCE_LEVEL,
+        "ci_method": "paired_percentile_bootstrap",
+        "resampling_unit": "image_id",
+        "bootstrap_replicates": bootstrap_replicates,
+        "bootstrap_seed": bootstrap_seed
+    }
+
+    return pd.DataFrame([
+        {
+            "analysis": "accuracy_difference",
+            "comparison": f"{stronger_model} minus {baseline_model}",
+            "condition": "Gaussian noise severity 5",
+            "estimate": float(stronger_correct.mean() - baseline_correct.mean()),
+            "ci_lower": accuracy_lower,
+            "ci_upper": accuracy_upper,
+            "num_images": num_images,
+            **common
+        },
+        {
+            "analysis": "failure_detection_auroc_difference",
+            "comparison": f"{stronger_model} minus {baseline_model}",
+            "condition": "Gaussian noise severity 5",
+            "estimate": float(stronger_auroc - baseline_auroc),
+            "ci_lower": auroc_lower,
+            "ci_upper": auroc_upper,
+            "num_images": num_images,
+            **common
+        },
+        {
+            "analysis": "persistent_error_mean_confidence_change",
+            "comparison": f"{stronger_model} severity 5 minus severity 4",
+            "condition": "Gaussian noise severity 4 to 5, wrong at both",
+            "estimate": float(persistent_confidence_changes.mean()),
+            "ci_lower": transition_lower,
+            "ci_upper": transition_upper,
+            "num_images": int(persistent_confidence_changes.size),
+            **common
+        }
+    ])
 
 def _validate_saved_trust(recomputed: dict, saved: dict, condition: tuple) -> None:
     if recomputed["trust_signal"] != saved.get("trust_signal"):
