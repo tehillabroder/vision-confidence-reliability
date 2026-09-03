@@ -1,0 +1,42 @@
+Using device: cpu
+Model: ResNet18
+Pretrained weights: IMAGENET1K_V1
+Training strategy: full_finetune
+Training examples: 22650
+Requested validation examples: 4000
+Validation examples: 3990
+Validation tracks: 133
+Track overlap: 0
+Epoch 1/10 average loss: 0.3171
+Epoch 2/10 average loss: 0.0580
+Epoch 3/10 average loss: 0.0451
+Epoch 4/10 average loss: 0.0243
+Epoch 5/10 average loss: 0.0370
+Epoch 6/10 average loss: 0.0277
+Epoch 7/10 average loss: 0.0179
+Epoch 8/10 average loss: 0.0289
+Epoch 9/10 average loss: 0.0101
+Epoch 10/10 average loss: 0.0055
+Validation accuracy: 0.9694
+Validation balanced accuracy: 0.9637
+Validation track hash: f37d445eac4fe94ed5b346b8939aa361ab11f8f32b60cc5c06698bb858efaba8
+Saved checkpoint to checkpoints/gtsrb_resnet18.pt
+Saved config to checkpoints/gtsrb_resnet18_config.yaml
+     2007.07 real      6863.30 user       857.63 sys
+           673406976  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+           189724036  page reclaims
+                  66  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+               81847  voluntary context switches
+             8002595  involuntary context switches
+      14318831409921  instructions retired
+      18392224365217  cycles elapsed
+           452755456  peak memory footprint

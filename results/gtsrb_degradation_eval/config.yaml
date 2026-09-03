@@ -1,0 +1,64 @@
+dataset: GTSRB
+model: GTSRBCNN
+data_dir: data
+checkpoint: checkpoints/gtsrb_cnn.pt
+output_dir: results/gtsrb_degradation_eval
+validation_profile: results/gtsrb_validation_profile.json
+seed: 42
+
+training:
+  # ten epochs provide an initial baseline without an excessive training scope
+  epochs: 10
+  batch_size: 64
+  # this provides broad validation coverage across the 43 classes
+  validation_size: 4000
+  # keep all frames from one physical-sign track in the same subset
+  validation_split: stratified_track
+  max_train_batches: null
+  learning_rate: 0.001
+  augmentation:
+    resize: true
+    random_crop: false
+    rotation: false
+    blur: false
+    noise: false
+    brightness_contrast: false
+
+evaluation:
+  batch_size: 64
+  max_eval_batches: null
+  degradations:
+    - blur
+    - noise
+    - low_light
+  severity_levels: [1, 2, 3, 4, 5]
+  ece_bins: 10
+  fixed_hcer_threshold: 0.90
+  adaptive_hcer_percentile: 90
+  # compare the adaptive threshold with a fixed-size highest-confidence group
+  rank_hcer_top_fraction: 0.10
+
+trust_policy:
+  error_denominator_floor: 0.01
+
+  # adaptive HCER remains audit evidence but does not drive GTSRB warnings
+  active_metrics:
+    - absolute_accuracy_drop
+    - relative_error_increase
+    - ece_increase
+    - gap_deterioration
+    - fixed_hcer_increase
+
+  caution:
+    absolute_accuracy_drop: 0.05
+    relative_error_increase: 1.0
+    ece_increase: 0.03
+    gap_deterioration: 0.05
+    fixed_hcer_increase: 0.02
+
+  do_not_trust:
+    absolute_accuracy_drop: 0.15
+    relative_error_increase: 3.0
+    ece_increase: 0.08
+    gap_deterioration: 0.12
+    fixed_hcer_increase: 0.07

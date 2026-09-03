@@ -1,0 +1,608 @@
+[
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "none",
+    "severity": 0,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0177355502771179,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.044497228820269186,
+    "absolute_accuracy_drop": 0.0,
+    "relative_error_increase": 0.0,
+    "ece_increase": 0.0,
+    "gap_shift": 0.0,
+    "gap_direction": "unchanged",
+    "gap_deterioration": 0.0,
+    "fixed_hcer_increase": 0.0,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "blur",
+    "severity": 1,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0197941409342834,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.05170229612034838,
+    "absolute_accuracy_drop": 0.007205067300079193,
+    "relative_error_increase": 0.1619217081850538,
+    "ece_increase": 0.0030891658645344974,
+    "gap_shift": 0.0032901775242313996,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0032901775242313996,
+    "fixed_hcer_increase": 0.002058590657165498,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "blur",
+    "severity": 2,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0216152019002375,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.06627078384798102,
+    "absolute_accuracy_drop": 0.021773555027711833,
+    "relative_error_increase": 0.4893238434163711,
+    "ece_increase": 0.010872832230887298,
+    "gap_shift": 0.011475736162347299,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.011475736162347299,
+    "fixed_hcer_increase": 0.003879651623119599,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "blur",
+    "severity": 3,
+    "trust_signal": "caution",
+    "performance_signal": "caution",
+    "confidence_signal": "trust",
+    "triggered_rules": [
+      "caution_absolute_accuracy_drop",
+      "caution_relative_error_increase"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.0504, meeting the caution threshold of 0.0500.",
+      "relative error increase was 1.1335, meeting the caution threshold of 1.0000."
+    ],
+    "performance_triggered_rules": [
+      "caution_absolute_accuracy_drop",
+      "caution_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.0504, meeting the caution threshold of 0.0500.",
+      "relative error increase was 1.1335, meeting the caution threshold of 1.0000."
+    ],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0274742676167854,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.09493269992082343,
+    "absolute_accuracy_drop": 0.05043547110055424,
+    "relative_error_increase": 1.133451957295374,
+    "ece_increase": 0.021581324234734602,
+    "gap_shift": 0.022388842676545704,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.022388842676545704,
+    "fixed_hcer_increase": 0.0097387173396675,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "blur",
+    "severity": 4,
+    "trust_signal": "caution",
+    "performance_signal": "caution",
+    "confidence_signal": "caution",
+    "triggered_rules": [
+      "caution_absolute_accuracy_drop",
+      "caution_relative_error_increase",
+      "caution_ece_increase",
+      "caution_gap_deterioration"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.1131, meeting the caution threshold of 0.0500.",
+      "relative error increase was 2.5427, meeting the caution threshold of 1.0000.",
+      "ECE increase was 0.0503, meeting the caution threshold of 0.0300.",
+      "confidence gap deterioration towards overconfidence was 0.0506, meeting the caution threshold of 0.0500."
+    ],
+    "performance_triggered_rules": [
+      "caution_absolute_accuracy_drop",
+      "caution_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.1131, meeting the caution threshold of 0.0500.",
+      "relative error increase was 2.5427, meeting the caution threshold of 1.0000."
+    ],
+    "confidence_triggered_rules": [
+      "caution_ece_increase",
+      "caution_gap_deterioration"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.0503, meeting the caution threshold of 0.0300.",
+      "confidence gap deterioration towards overconfidence was 0.0506, meeting the caution threshold of 0.0500."
+    ],
+    "hcer_fixed": 0.0363420427553444,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.1576405384006334,
+    "absolute_accuracy_drop": 0.11314330958036423,
+    "relative_error_increase": 2.5427046263345208,
+    "ece_increase": 0.05025469846699031,
+    "gap_shift": 0.050580188016143904,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.050580188016143904,
+    "fixed_hcer_increase": 0.018606492478226502,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "blur",
+    "severity": 5,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "do_not_trust",
+    "triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase",
+      "do_not_trust_ece_increase"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.2138, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 4.8043, meeting the do not trust threshold of 3.0000.",
+      "ECE increase was 0.0983, meeting the do not trust threshold of 0.0800."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.2138, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 4.8043, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "do_not_trust_ece_increase"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.0983, meeting the do not trust threshold of 0.0800."
+    ],
+    "hcer_fixed": 0.0525732383214568,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.2582739509105305,
+    "absolute_accuracy_drop": 0.21377672209026133,
+    "relative_error_increase": 4.804270462633455,
+    "ece_increase": 0.0982726176721373,
+    "gap_shift": 0.09908013611394839,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.09908013611394839,
+    "fixed_hcer_increase": 0.0348376880443389,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "noise",
+    "severity": 1,
+    "trust_signal": "caution",
+    "performance_signal": "caution",
+    "confidence_signal": "caution",
+    "triggered_rules": [
+      "caution_absolute_accuracy_drop",
+      "caution_relative_error_increase",
+      "caution_ece_increase"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.0942, meeting the caution threshold of 0.0500.",
+      "relative error increase was 2.1174, meeting the caution threshold of 1.0000.",
+      "ECE increase was 0.0413, meeting the caution threshold of 0.0300."
+    ],
+    "performance_triggered_rules": [
+      "caution_absolute_accuracy_drop",
+      "caution_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.0942, meeting the caution threshold of 0.0500.",
+      "relative error increase was 2.1174, meeting the caution threshold of 1.0000."
+    ],
+    "confidence_triggered_rules": [
+      "caution_ece_increase"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.0413, meeting the caution threshold of 0.0300."
+    ],
+    "hcer_fixed": 0.0352335708630245,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.13871733966745847,
+    "absolute_accuracy_drop": 0.09422011084718929,
+    "relative_error_increase": 2.117437722419931,
+    "ece_increase": 0.0412952813575736,
+    "gap_shift": 0.04210279979938479,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.04210279979938479,
+    "fixed_hcer_increase": 0.017498020585906597,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "noise",
+    "severity": 2,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "caution",
+    "triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.2420, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 5.4395, meeting the do not trust threshold of 3.0000."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.2420, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 5.4395, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "caution_ece_increase",
+      "caution_gap_deterioration"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.0684, meeting the caution threshold of 0.0300.",
+      "confidence gap deterioration towards overconfidence was 0.0692, meeting the caution threshold of 0.0500."
+    ],
+    "hcer_fixed": 0.0368171021377672,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.2865399841646873,
+    "absolute_accuracy_drop": 0.2420427553444181,
+    "relative_error_increase": 5.439501779359434,
+    "ece_increase": 0.0684023962982193,
+    "gap_shift": 0.06920991474003049,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.06920991474003049,
+    "fixed_hcer_increase": 0.019081551860649297,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "noise",
+    "severity": 3,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "do_not_trust",
+    "triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase",
+      "do_not_trust_ece_increase"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.3936, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 8.8452, meeting the do not trust threshold of 3.0000.",
+      "ECE increase was 0.0968, meeting the do not trust threshold of 0.0800."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.3936, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 8.8452, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "do_not_trust_ece_increase"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.0968, meeting the do not trust threshold of 0.0800."
+    ],
+    "hcer_fixed": 0.0250989707046714,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.4380839271575614,
+    "absolute_accuracy_drop": 0.3935866983372922,
+    "relative_error_increase": 8.845195729537371,
+    "ece_increase": 0.0968119167906372,
+    "gap_shift": 0.0975882448934414,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0975882448934414,
+    "fixed_hcer_increase": 0.0073634204275534985,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "noise",
+    "severity": 4,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "do_not_trust",
+    "triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase",
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.5462, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 12.2758, meeting the do not trust threshold of 3.0000.",
+      "ECE increase was 0.1678, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.1686, meeting the do not trust threshold of 0.1200."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.5462, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 12.2758, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.1678, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.1686, meeting the do not trust threshold of 0.1200."
+    ],
+    "hcer_fixed": 0.0210609659540775,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.5907363420427554,
+    "absolute_accuracy_drop": 0.5462391132224862,
+    "relative_error_increase": 12.275800711743777,
+    "ece_increase": 0.1677561449266009,
+    "gap_shift": 0.1685636633684119,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.1685636633684119,
+    "fixed_hcer_increase": 0.0033254156769595977,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "noise",
+    "severity": 5,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "do_not_trust",
+    "triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase",
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.6754, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 15.1779, meeting the do not trust threshold of 3.0000.",
+      "ECE increase was 0.2718, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.2726, meeting the do not trust threshold of 0.1200."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.6754, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 15.1779, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.2718, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.2726, meeting the do not trust threshold of 0.1200."
+    ],
+    "hcer_fixed": 0.0256532066508313,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.7198733174980205,
+    "absolute_accuracy_drop": 0.6753760886777513,
+    "relative_error_increase": 15.177935943060502,
+    "ece_increase": 0.2718234035625216,
+    "gap_shift": 0.2726309220043327,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.2726309220043327,
+    "fixed_hcer_increase": 0.007917656373713399,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "low_light",
+    "severity": 1,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0177355502771179,
+    "hcer_adaptive": 7.917656373713381e-05,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.04758511480601757,
+    "absolute_accuracy_drop": 0.0030878859857483842,
+    "relative_error_increase": 0.06939501779359805,
+    "ece_increase": 0.0010739483074922972,
+    "gap_shift": 0.0016405930935817006,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0016405930935817006,
+    "fixed_hcer_increase": 0.0,
+    "adaptive_hcer_increase": 7.917656373713381e-05
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "low_light",
+    "severity": 2,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0178147268408551,
+    "hcer_adaptive": 7.917656373713381e-05,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.05138558986539998,
+    "absolute_accuracy_drop": 0.0068883610451307975,
+    "relative_error_increase": 0.154804270462637,
+    "ece_increase": 0.0017488748295290991,
+    "gap_shift": 0.0017860130443048995,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0017860130443048995,
+    "fixed_hcer_increase": 7.917656373719953e-05,
+    "adaptive_hcer_increase": 7.917656373713381e-05
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "low_light",
+    "severity": 3,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0188440221694378,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.06516231195566125,
+    "absolute_accuracy_drop": 0.02066508313539206,
+    "relative_error_increase": 0.4644128113879036,
+    "ece_increase": 0.005127187373495597,
+    "gap_shift": 0.005934705815306699,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.005934705815306699,
+    "fixed_hcer_increase": 0.0011084718923198983,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "low_light",
+    "severity": 4,
+    "trust_signal": "caution",
+    "performance_signal": "caution",
+    "confidence_signal": "trust",
+    "triggered_rules": [
+      "caution_absolute_accuracy_drop",
+      "caution_relative_error_increase"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.0547, meeting the caution threshold of 0.0500.",
+      "relative error increase was 1.2295, meeting the caution threshold of 1.0000."
+    ],
+    "performance_triggered_rules": [
+      "caution_absolute_accuracy_drop",
+      "caution_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.0547, meeting the caution threshold of 0.0500.",
+      "relative error increase was 1.2295, meeting the caution threshold of 1.0000."
+    ],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0209026128266033,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.09920823436262882,
+    "absolute_accuracy_drop": 0.054711005542359636,
+    "relative_error_increase": 1.2295373665480471,
+    "ece_increase": 0.016410055535941995,
+    "gap_shift": 0.0172175739777532,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0172175739777532,
+    "fixed_hcer_increase": 0.0031670625494854,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "ResNet18",
+    "degradation": "low_light",
+    "severity": 5,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "caution",
+    "triggered_rules": [
+      "do_not_trust_relative_error_increase"
+    ],
+    "triggered_rule_explanations": [
+      "relative error increase was 3.1673, meeting the do not trust threshold of 3.0000."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "relative error increase was 3.1673, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "caution_ece_increase"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.0481, meeting the caution threshold of 0.0300."
+    ],
+    "hcer_fixed": 0.0201108471892319,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.044497228820269186,
+    "condition_error": 0.18543151227236743,
+    "absolute_accuracy_drop": 0.14093428345209824,
+    "relative_error_increase": 3.167259786476871,
+    "ece_increase": 0.048146543844130404,
+    "gap_shift": 0.0489540622859415,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0489540622859415,
+    "fixed_hcer_increase": 0.002375296912113998,
+    "adaptive_hcer_increase": 0.0
+  }
+]

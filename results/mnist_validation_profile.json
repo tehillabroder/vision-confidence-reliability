@@ -1,0 +1,17 @@
+{
+  "dataset": "MNIST",
+  "model": "SimpleCNN",
+  "checkpoint": "checkpoints/mnist_simple_cnn.pt",
+  "seed": 42,
+  "degradation": "none",
+  "severity": 0,
+  "validation_sample_count": 5000,
+  "baseline_accuracy": 0.9808,
+  "baseline_mean_confidence": 0.9773373079776764,
+  "baseline_ece": 0.004327194905281089,
+  "baseline_confidence_accuracy_gap": -0.0034626920223236324,
+  "baseline_fixed_hcer": 0.0046,
+  "fixed_hcer_threshold": 0.9,
+  "adaptive_hcer_percentile": 90,
+  "adaptive_hcer_threshold": 0.9999878406524658
+}

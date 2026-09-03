@@ -1,0 +1,4 @@
+degradation,GTSRBCNN_first_caution_severity,GTSRBCNN_first_do_not_trust_severity,ResNet18_first_caution_severity,ResNet18_first_do_not_trust_severity
+blur,3,4,3,5
+noise,1,2,1,2
+low_light,4,5,4,5

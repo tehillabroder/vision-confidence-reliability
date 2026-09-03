@@ -1,12 +1,32 @@
 .venv/
 data/
-results/
 __pycache__/
 *.pyc
+.pytest_cache/
 .DS_Store
 .ipynb_checkpoints/
-CLAUDE.md
-DEV_DIARY.md
-STYLE_GUIDE.md
+
+# trained model binaries stay local
 checkpoints/
+
+# prediction-level outputs are reproducible but too large for Git
+results/**/predictions.csv
+
+# outdated exploratory evidence stays local
+results/gtsrb_degradation_eval_pre_hcer_audit/
+results/gtsrb_degradation_eval_pre_standard_schema/
+results/gtsrb_degradation_eval_random_split_exploratory/
+results/mnist_degradation_full_pre_standard_schema/
+results/gtsrb_validation_profile_pre_hcer_audit.json
+results/gtsrb_validation_profile_random_split_exploratory.json
+# one-off diagnostic evidence stays local
+results/gtsrb_none_predictions_audit.csv
+# outdated MNIST evidence stays local
+results/mnist_degradation_full/
+
+# material produced for social media
+results/linkedin/
 scripts/plot_linkedin.py
+
+# local development notes
+DEV_DIARY.md

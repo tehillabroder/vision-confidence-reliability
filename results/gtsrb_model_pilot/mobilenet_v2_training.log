@@ -1,0 +1,42 @@
+Using device: cpu
+Model: MobileNetV2
+Pretrained weights: IMAGENET1K_V1
+Training strategy: full_finetune
+Training examples: 22650
+Requested validation examples: 4000
+Validation examples: 3990
+Validation tracks: 133
+Track overlap: 0
+Epoch 1/10 average loss: 0.3730
+Epoch 2/10 average loss: 0.0663
+Epoch 3/10 average loss: 0.0376
+Epoch 4/10 average loss: 0.0384
+Epoch 5/10 average loss: 0.0414
+Epoch 6/10 average loss: 0.0315
+Epoch 7/10 average loss: 0.0251
+Epoch 8/10 average loss: 0.0333
+Epoch 9/10 average loss: 0.0316
+Epoch 10/10 average loss: 0.0302
+Validation accuracy: 0.9822
+Validation balanced accuracy: 0.9629
+Validation track hash: f37d445eac4fe94ed5b346b8939aa361ab11f8f32b60cc5c06698bb858efaba8
+Saved checkpoint to checkpoints/gtsrb_mobilenet_v2.pt
+Saved config to checkpoints/gtsrb_mobilenet_v2_config.yaml
+     6800.25 real     16916.82 user      8824.96 sys
+           826945536  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+           483235031  page reclaims
+               19240  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+               55570  voluntary context switches
+           202111450  involuntary context switches
+      51338718938736  instructions retired
+      61257328078356  cycles elapsed
+           629739520  peak memory footprint

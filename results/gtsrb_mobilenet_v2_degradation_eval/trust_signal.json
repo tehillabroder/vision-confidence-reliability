@@ -1,0 +1,594 @@
+[
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "none",
+    "severity": 0,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0106096595407759,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.03436262866191597,
+    "absolute_accuracy_drop": 0.0,
+    "relative_error_increase": 0.0,
+    "ece_increase": 0.0,
+    "gap_shift": 0.0,
+    "gap_direction": "unchanged",
+    "gap_deterioration": 0.0,
+    "fixed_hcer_increase": 0.0,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "blur",
+    "severity": 1,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0136975455265241,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.038638163103721146,
+    "absolute_accuracy_drop": 0.004275534441805173,
+    "relative_error_increase": 0.12442396313363939,
+    "ece_increase": 0.0030809167067588003,
+    "gap_shift": 0.0030504786958790997,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0030504786958790997,
+    "fixed_hcer_increase": 0.0030878859857482004,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "blur",
+    "severity": 2,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0182897862232779,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.05027711797307999,
+    "absolute_accuracy_drop": 0.015914489311164015,
+    "relative_error_increase": 0.4631336405530002,
+    "ece_increase": 0.008525450780740101,
+    "gap_shift": 0.008247690214845501,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.008247690214845501,
+    "fixed_hcer_increase": 0.007680126682501998,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "blur",
+    "severity": 3,
+    "trust_signal": "caution",
+    "performance_signal": "caution",
+    "confidence_signal": "trust",
+    "triggered_rules": [
+      "caution_relative_error_increase"
+    ],
+    "triggered_rule_explanations": [
+      "relative error increase was 1.4378, meeting the caution threshold of 1.0000."
+    ],
+    "performance_triggered_rules": [
+      "caution_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "relative error increase was 1.4378, meeting the caution threshold of 1.0000."
+    ],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0239904988123515,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.08376880443388757,
+    "absolute_accuracy_drop": 0.049406175771971594,
+    "relative_error_increase": 1.4377880184331868,
+    "ece_increase": 0.0226400964339622,
+    "gap_shift": 0.022069185490256098,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.022069185490256098,
+    "fixed_hcer_increase": 0.0133808392715756,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "blur",
+    "severity": 4,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "caution",
+    "triggered_rules": [
+      "do_not_trust_relative_error_increase"
+    ],
+    "triggered_rule_explanations": [
+      "relative error increase was 3.7903, meeting the do not trust threshold of 3.0000."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "relative error increase was 3.7903, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "caution_ece_increase",
+      "caution_gap_deterioration",
+      "caution_fixed_hcer_increase"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.0579, meeting the caution threshold of 0.0300.",
+      "confidence gap deterioration towards overconfidence was 0.0579, meeting the caution threshold of 0.0500.",
+      "fixed HCER increase was 0.0317, meeting the caution threshold of 0.0200."
+    ],
+    "hcer_fixed": 0.0422802850356294,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.16460807600950123,
+    "absolute_accuracy_drop": 0.13024544734758525,
+    "relative_error_increase": 3.790322580645176,
+    "ece_increase": 0.05791717682650241,
+    "gap_shift": 0.057917176826502305,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.057917176826502305,
+    "fixed_hcer_increase": 0.0316706254948535,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "blur",
+    "severity": 5,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "do_not_trust",
+    "triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase",
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.2801, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 8.1521, meeting the do not trust threshold of 3.0000.",
+      "ECE increase was 0.1360, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.1360, meeting the do not trust threshold of 0.1200."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.2801, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 8.1521, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.1360, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.1360, meeting the do not trust threshold of 0.1200."
+    ],
+    "hcer_fixed": 0.0714964370546318,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.31448931116389545,
+    "absolute_accuracy_drop": 0.2801266825019795,
+    "relative_error_increase": 8.15207373271892,
+    "ece_increase": 0.1360164548107441,
+    "gap_shift": 0.1360164548107441,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.1360164548107441,
+    "fixed_hcer_increase": 0.06088677751385589,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "noise",
+    "severity": 1,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "do_not_trust",
+    "triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase",
+      "do_not_trust_ece_increase"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.2385, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 6.9401, meeting the do not trust threshold of 3.0000.",
+      "ECE increase was 0.0809, meeting the do not trust threshold of 0.0800."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.2385, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 6.9401, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "do_not_trust_ece_increase"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.0809, meeting the do not trust threshold of 0.0800."
+    ],
+    "hcer_fixed": 0.0376088677751385,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.27284243863816315,
+    "absolute_accuracy_drop": 0.23847980997624718,
+    "relative_error_increase": 6.940092165898642,
+    "ece_increase": 0.0808906319694961,
+    "gap_shift": 0.0807786110307806,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0807786110307806,
+    "fixed_hcer_increase": 0.0269992082343626,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "noise",
+    "severity": 2,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "do_not_trust",
+    "triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase",
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.4831, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 14.0576, meeting the do not trust threshold of 3.0000.",
+      "ECE increase was 0.1428, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.1428, meeting the do not trust threshold of 0.1200."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.4831, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 14.0576, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.1428, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.1428, meeting the do not trust threshold of 0.1200."
+    ],
+    "hcer_fixed": 0.0285035629453681,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.5174188440221694,
+    "absolute_accuracy_drop": 0.48305621536025345,
+    "relative_error_increase": 14.057603686635987,
+    "ece_increase": 0.1427955971088376,
+    "gap_shift": 0.1427955971088375,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.1427955971088375,
+    "fixed_hcer_increase": 0.0178939034045922,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "noise",
+    "severity": 3,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "do_not_trust",
+    "triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase",
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.6403, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 18.6336, meeting the do not trust threshold of 3.0000.",
+      "ECE increase was 0.1781, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.1781, meeting the do not trust threshold of 0.1200."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.6403, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 18.6336, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.1781, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.1781, meeting the do not trust threshold of 0.1200."
+    ],
+    "hcer_fixed": 0.0182106096595407,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.6746634996041172,
+    "absolute_accuracy_drop": 0.6403008709422012,
+    "relative_error_increase": 18.63364055299545,
+    "ece_increase": 0.1780887578759322,
+    "gap_shift": 0.1780887578759321,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.1780887578759321,
+    "fixed_hcer_increase": 0.007600950118764799,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "noise",
+    "severity": 4,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "do_not_trust",
+    "triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase",
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.7469, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 21.7350, meeting the do not trust threshold of 3.0000.",
+      "ECE increase was 0.2109, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.2109, meeting the do not trust threshold of 0.1200."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.7469, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 21.7350, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.2109, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.2109, meeting the do not trust threshold of 0.1200."
+    ],
+    "hcer_fixed": 0.0133016627078384,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.7812351543942992,
+    "absolute_accuracy_drop": 0.7468725257323834,
+    "relative_error_increase": 21.73502304147472,
+    "ece_increase": 0.2108638521115741,
+    "gap_shift": 0.21086385211157388,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.21086385211157388,
+    "fixed_hcer_increase": 0.0026920031670624994,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "noise",
+    "severity": 5,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "do_not_trust",
+    "triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase",
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "triggered_rule_explanations": [
+      "absolute accuracy drop was 0.8207, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 23.8825, meeting the do not trust threshold of 3.0000.",
+      "ECE increase was 0.2404, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.2404, meeting the do not trust threshold of 0.1200."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_absolute_accuracy_drop",
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "absolute accuracy drop was 0.8207, meeting the do not trust threshold of 0.1500.",
+      "relative error increase was 23.8825, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [
+      "do_not_trust_ece_increase",
+      "do_not_trust_gap_deterioration"
+    ],
+    "confidence_triggered_rule_explanations": [
+      "ECE increase was 0.2404, meeting the do not trust threshold of 0.0800.",
+      "confidence gap deterioration towards overconfidence was 0.2404, meeting the do not trust threshold of 0.1200."
+    ],
+    "hcer_fixed": 0.0079968329374505,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.855027711797308,
+    "absolute_accuracy_drop": 0.820665083135392,
+    "relative_error_increase": 23.882488479262744,
+    "ece_increase": 0.2404106065872777,
+    "gap_shift": 0.2404106065872776,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.2404106065872776,
+    "fixed_hcer_increase": -0.0026128266033254004,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "low_light",
+    "severity": 1,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0110055423594616,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.03523357086302459,
+    "absolute_accuracy_drop": 0.0008709422011086154,
+    "relative_error_increase": 0.02534562211981992,
+    "ece_increase": 0.0004984319646588013,
+    "gap_shift": 0.0004928603060454992,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0004928603060454992,
+    "fixed_hcer_increase": 0.00039588281868569927,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "low_light",
+    "severity": 2,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.01187648456057,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.037450514647664246,
+    "absolute_accuracy_drop": 0.0030878859857482732,
+    "relative_error_increase": 0.08986175115207559,
+    "ece_increase": 0.0017693981882230016,
+    "gap_shift": 0.0017175357974621996,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0017175357974621996,
+    "fixed_hcer_increase": 0.0012668250197940996,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "low_light",
+    "severity": 3,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0126682501979414,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.04386381631037217,
+    "absolute_accuracy_drop": 0.0095011876484562,
+    "relative_error_increase": 0.2764976958525395,
+    "ece_increase": 0.002954273350589901,
+    "gap_shift": 0.002954273350589901,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.002954273350589901,
+    "fixed_hcer_increase": 0.0020585906571655,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "low_light",
+    "severity": 4,
+    "trust_signal": "trust",
+    "performance_signal": "trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [],
+    "triggered_rule_explanations": [],
+    "performance_triggered_rules": [],
+    "performance_triggered_rule_explanations": [],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0141726049089469,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.0676167854315124,
+    "absolute_accuracy_drop": 0.03325415676959642,
+    "relative_error_increase": 0.9677419354838802,
+    "ece_increase": 0.008450030204519302,
+    "gap_shift": 0.0084500302045191,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0084500302045191,
+    "fixed_hcer_increase": 0.0035629453681710003,
+    "adaptive_hcer_increase": 0.0
+  },
+  {
+    "dataset": "GTSRB",
+    "model": "MobileNetV2",
+    "degradation": "low_light",
+    "severity": 5,
+    "trust_signal": "do_not_trust",
+    "performance_signal": "do_not_trust",
+    "confidence_signal": "trust",
+    "triggered_rules": [
+      "do_not_trust_relative_error_increase"
+    ],
+    "triggered_rule_explanations": [
+      "relative error increase was 3.3065, meeting the do not trust threshold of 3.0000."
+    ],
+    "performance_triggered_rules": [
+      "do_not_trust_relative_error_increase"
+    ],
+    "performance_triggered_rule_explanations": [
+      "relative error increase was 3.3065, meeting the do not trust threshold of 3.0000."
+    ],
+    "confidence_triggered_rules": [],
+    "confidence_triggered_rule_explanations": [],
+    "hcer_fixed": 0.0190023752969121,
+    "hcer_adaptive": 0.0,
+    "baseline_error": 0.03436262866191597,
+    "condition_error": 0.14798099762470307,
+    "absolute_accuracy_drop": 0.1136183689627871,
+    "relative_error_increase": 3.306451612903238,
+    "ece_increase": 0.0289860128300443,
+    "gap_shift": 0.0289860128300442,
+    "gap_direction": "towards_overconfidence",
+    "gap_deterioration": 0.0289860128300442,
+    "fixed_hcer_increase": 0.0083927157561362,
+    "adaptive_hcer_increase": 0.0
+  }
+]
