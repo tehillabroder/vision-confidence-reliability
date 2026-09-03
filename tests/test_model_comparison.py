@@ -2,7 +2,7 @@
 
 import pandas as pd
 import pytest
-from src.reporting.model_comparison import build_model_comparison, build_trust_transition_comparison, save_model_comparison_plots
+from src.reporting.model_comparison import build_confirmatory_model_summary, build_model_comparison, build_trust_transition_comparison, save_model_comparison_plots
 
 # build lightweight mock metrics and trust records to simulate a baseline vs stronger run
 def build_metrics_frame(model: str, accuracy_shift: float = 0.0, ece_shift: float = 0.0) -> pd.DataFrame:
@@ -64,6 +64,85 @@ def build_trust_records(model: str, blur_do_not_trust: int) -> list[dict]:
         ])
 
     return records
+
+def build_confirmatory_metrics_frame(model: str) -> pd.DataFrame:
+    rows = []
+
+    for degradation, severity, accuracy in [
+        ("none", 0, 0.75),
+        ("noise", 1, 0.75),
+        ("noise", 2, 0.50),
+        ("noise", 3, 0.50),
+        ("noise", 4, 0.25),
+        ("noise", 5, 0.25)
+    ]:
+        rows.append({
+            "dataset": "GTSRB",
+            "model": model,
+            "seed": 42,
+            "degradation": degradation,
+            "severity": severity,
+            "validation_split": "stratified_track",
+            "requested_validation_size": 4000,
+            "validation_size": 3990,
+            "validation_track_count": 133,
+            "track_overlap": 0,
+            "validation_track_hash": "a" * 64,
+            "accuracy": accuracy,
+            "balanced_accuracy": accuracy,
+            "mean_confidence": 0.60,
+            "confidence_accuracy_gap": 0.0,
+            "ece": 0.0,
+            "hcer_fixed": 0.0,
+            "hcer_rank": 0.0,
+            "hcer_rank_coverage": 0.25,
+            "fixed_hcer_threshold": 0.90,
+            "rank_hcer_top_fraction": 0.10,
+            "adaptive_hcer_percentile": 90,
+            "ece_bins": 10,
+            "num_examples": 4
+        })
+
+    return pd.DataFrame(rows)
+
+def build_confirmatory_predictions(model: str) -> pd.DataFrame:
+    rows = []
+    conditions = [
+        ("none", 0, [1, 1, 1, 0], [0.90, 0.80, 0.70, 0.60]),
+        ("noise", 1, [1, 1, 1, 0], [0.90, 0.80, 0.70, 0.60]),
+        ("noise", 2, [1, 1, 0, 0], [0.90, 0.80, 0.40, 0.30]),
+        ("noise", 3, [1, 1, 0, 0], [0.90, 0.75, 0.35, 0.25]),
+        ("noise", 4, [1, 0, 0, 0], [0.90, 0.40, 0.30, 0.20]),
+        ("noise", 5, [1, 0, 0, 0], [0.85, 0.50, 0.35, 0.10])
+    ]
+    true_labels = [0, 0, 1, 1]
+
+    for degradation, severity, correct, confidences in conditions:
+        for image_id, true_label in enumerate(true_labels):
+            rows.append({
+                "dataset": "GTSRB",
+                "model": model,
+                "seed": 42,
+                "image_id": image_id,
+                "true_label": true_label,
+                "predicted_label": true_label if correct[image_id] else 1 - true_label,
+                "correct": correct[image_id],
+                "confidence": confidences[image_id],
+                "degradation": degradation,
+                "severity": severity
+            })
+
+    return pd.DataFrame(rows)
+
+def build_confirmatory_trust_records(model: str) -> list[dict]:
+    return [
+        {"model": model, "degradation": "none", "severity": 0, "trust_signal": "trust", "performance_signal": "trust", "confidence_signal": "trust"},
+        {"model": model, "degradation": "blur", "severity": 1, "trust_signal": "trust", "performance_signal": "trust", "confidence_signal": "trust"},
+        {"model": model, "degradation": "blur", "severity": 3, "trust_signal": "caution", "performance_signal": "caution", "confidence_signal": "trust"},
+        {"model": model, "degradation": "noise", "severity": 1, "trust_signal": "do_not_trust", "performance_signal": "do_not_trust", "confidence_signal": "do_not_trust"},
+        {"model": model, "degradation": "low_light", "severity": 1, "trust_signal": "trust", "performance_signal": "trust", "confidence_signal": "trust"},
+        {"model": model, "degradation": "low_light", "severity": 5, "trust_signal": "do_not_trust", "performance_signal": "do_not_trust", "confidence_signal": "trust"}
+    ]
 
 # test the core comparison logic
 # checks pass when splits match, fail when conditions drift,
@@ -127,3 +206,29 @@ def test_save_model_comparison_plots_creates_expected_files(tmp_path):
 
     assert {path.name for path in paths} == expected
     assert all(path.exists() and path.stat().st_size > 0 for path in paths)
+
+def test_build_confirmatory_model_summary_keeps_only_selected_findings():
+    # check the confirmatory table preserves the severe-noise and warning evidence
+    evidence = []
+
+    for model in ("GTSRBCNN", "ResNet18", "MobileNetV2"):
+        evidence.append((
+            build_confirmatory_metrics_frame(model),
+            build_confirmatory_predictions(model),
+            build_confirmatory_trust_records(model)
+        ))
+
+    result = build_confirmatory_model_summary(evidence)
+
+    assert result["model"].tolist() == ["GTSRBCNN", "ResNet18", "MobileNetV2"]
+    assert result["clean_test_accuracy"].eq(0.75).all()
+    assert result["noise_5_accuracy"].eq(0.25).all()
+    assert result["noise_5_failure_detection_auroc"].eq(1.0).all()
+    assert result["noise_5_rank_high_confidence_accuracy"].eq(1.0).all()
+    assert result["noise_4_to_5_persistent_error_count"].eq(3).all()
+    # convert to lists so pytest.approx handles float tolerance instead of strict equality
+    assert result["noise_4_to_5_persistent_error_confidence_increased_rate"].tolist() == pytest.approx([2 / 3] * 3)
+    assert result["noise_4_to_5_persistent_error_mean_confidence_change"].tolist() == pytest.approx([1 / 60] * 3)
+    assert result["blur_first_warning"].eq("caution@3 (performance)").all()
+    assert result["noise_first_warning"].eq("do_not_trust@1 (performance+confidence)").all()
+    assert result["low_light_first_warning"].eq("do_not_trust@5 (performance)").all()

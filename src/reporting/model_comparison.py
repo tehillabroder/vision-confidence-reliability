@@ -4,6 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter
 import pandas as pd
+from src.reporting.evidence_analysis import build_confidence_diagnostics, build_prediction_confidence_transitions
 
 plt.switch_backend("Agg")
 
@@ -121,6 +122,105 @@ def build_trust_transition_comparison(first_records: list[dict], second_records:
             row[f"{model_name}_first_do_not_trust_severity"] = int(do_not_trust.min()) if not do_not_trust.empty else None
 
         rows.append(row)
+
+    return pd.DataFrame(rows)
+
+def _first_warning_summary(trust_df: pd.DataFrame, degradation: str) -> str:
+    condition = trust_df[trust_df["degradation"] == degradation].sort_values("severity")
+    if condition.empty:
+        raise ValueError(f"Missing trust records for {degradation}.")
+
+    warning = condition[condition["trust_signal"] != "trust"]
+    if warning.empty:
+        return "none"
+
+    first = warning.iloc[0]
+    channels = []
+
+    if first["performance_signal"] != "trust":
+        channels.append("performance")
+    if first["confidence_signal"] != "trust":
+        channels.append("confidence")
+    if not channels:
+        raise ValueError(f"{degradation} warning has no active warning channel.")
+
+    return f"{first['trust_signal']}@{int(first['severity'])} ({'+'.join(channels)})"
+
+def build_confirmatory_model_summary(model_evidence: list[tuple[pd.DataFrame, pd.DataFrame, list[dict]]]) -> pd.DataFrame:
+    """Summarise the selected evidence used to check findings across models."""
+    if len(model_evidence) < 2:
+        raise ValueError("Confirmatory comparison requires at least two models.")
+
+    reference_metrics = model_evidence[0][0]
+    for metrics, _, _ in model_evidence[1:]:
+        _validate_metrics_pair(reference_metrics, metrics)
+
+    rows = []
+
+    for metrics, predictions, trust_records in model_evidence:
+        model = str(_single_value(metrics, "model"))
+        diagnostics = build_confidence_diagnostics(predictions, metrics)
+        transitions = build_prediction_confidence_transitions(predictions)
+        trust_df = pd.DataFrame(trust_records)
+        required_trust_columns = {
+            "model", "degradation", "severity", "trust_signal",
+            "performance_signal", "confidence_signal"
+        }
+        missing = required_trust_columns.difference(trust_df.columns)
+
+        if missing:
+            raise ValueError(f"Missing trust columns: {', '.join(sorted(missing))}.")
+        if trust_df["model"].drop_duplicates().tolist() != [model]:
+            raise ValueError("Trust records and metrics describe different models.")
+        if trust_df.duplicated(["degradation", "severity"]).any():
+            raise ValueError("Trust records must contain one row per condition.")
+
+        clean = metrics[(metrics["degradation"] == "none") & (metrics["severity"] == 0)]
+        severe_noise = metrics[(metrics["degradation"] == "noise") & (metrics["severity"] == 5)]
+        severe_noise_diagnostics = diagnostics[
+            (diagnostics["degradation"] == "noise")
+            & (diagnostics["severity"] == 5)
+        ]
+        persistent_errors = transitions[
+            (transitions["degradation"] == "noise")
+            & (transitions["from_severity"] == 4)
+            & (transitions["to_severity"] == 5)
+        ]
+
+        if len(clean) != 1 or len(severe_noise) != 1:
+            raise ValueError("Confirmatory comparison requires clean and noise severity 5 metrics.")
+        if len(severe_noise_diagnostics) != 1:
+            raise ValueError("Confirmatory comparison requires noise severity 5 confidence diagnostics.")
+        if len(persistent_errors) != 1:
+            raise ValueError("Confirmatory comparison requires the noise severity 4 to 5 transition.")
+
+        clean = clean.iloc[0]
+        severe_noise = severe_noise.iloc[0]
+        severe_noise_diagnostics = severe_noise_diagnostics.iloc[0]
+        persistent_errors = persistent_errors.iloc[0]
+
+        rows.append({
+            "model": model,
+            "clean_test_accuracy": float(clean["accuracy"]),
+            "clean_test_balanced_accuracy": float(clean["balanced_accuracy"]),
+            "noise_5_accuracy": float(severe_noise["accuracy"]),
+            "noise_5_balanced_accuracy": float(severe_noise["balanced_accuracy"]),
+            "noise_5_failure_detection_auroc": float(severe_noise_diagnostics["failure_detection_auroc"]),
+            "noise_5_rank_high_confidence_accuracy": float(severe_noise_diagnostics["rank_high_confidence_accuracy"]),
+            "noise_4_to_5_persistent_error_count": int(persistent_errors["wrong_at_both_count"]),
+            "noise_4_to_5_persistent_error_confidence_increased_rate": float(persistent_errors["wrong_at_both_confidence_increased_rate"]),
+            "noise_4_to_5_persistent_error_mean_confidence_change": float(persistent_errors["wrong_at_both_mean_confidence_change"]),
+            "blur_first_warning": _first_warning_summary(trust_df, "blur"),
+            "noise_first_warning": _first_warning_summary(trust_df, "noise"),
+            "low_light_first_warning": _first_warning_summary(trust_df, "low_light"),
+            "dataset": str(clean["dataset"]),
+            "seed": int(clean["seed"]),
+            "test_images": int(clean["num_examples"]),
+            "rank_hcer_top_fraction": float(clean["rank_hcer_top_fraction"]),
+            "validation_split": str(clean["validation_split"]),
+            "validation_track_hash": str(clean["validation_track_hash"]),
+            "track_overlap": int(clean["track_overlap"])
+        })
 
     return pd.DataFrame(rows)
 
