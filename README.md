@@ -1,14 +1,18 @@
 # Confident and Wrong
 
-A Framework for Evaluating When Vision Model Predictions Should Not Be Trusted
+**An open-source research framework for evaluating vision-model reliability under controlled image degradation.**
 
-This is my MSc Computer Science final project.
+Confident and Wrong investigates both when and how model confidence stops being a useful indication of correctness as image conditions deteriorate.
 
-It looks at what happens to vision-model confidence when image quality gets worse. The main question is not only whether accuracy drops, but whether confidence drops with it, or whether the model keeps making confident predictions while becoming increasingly wrong.
+The project provides a reproducible pre-deployment evaluation framework for applying controlled blur, Gaussian noise and low-light degradation to image classifiers and analysing the resulting behaviour using accuracy, calibration, high-confidence errors, failure-detection performance and prediction-level confidence transitions.
+
+Rather than asking only whether a model becomes less accurate, the framework examines what conventional aggregate metrics can hide. Examples include models with similar accuracy but very different failure behaviour, highly confident incorrect predictions, deteriorating reliability within high-confidence predictions, and cases where already-wrong predictions become more confident as degradation increases.
+
+The current evaluation covers MNIST and GTSRB and includes custom CNN architectures alongside pretrained ResNet18 and MobileNetV2 models.
 
 ## Research question
 
-> At what point does model confidence stop aligning with actual performance under degraded image conditions, and can this be detected using simple reliability signals?
+> Under controlled image degradation, when and how does model confidence stop being a useful indication of correctness, and can simple reliability signals expose failure behaviour that overall accuracy and calibration summaries hide?
 
 ## What the framework does
 
