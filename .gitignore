@@ -23,6 +23,8 @@ results/gtsrb_validation_profile_random_split_exploratory.json
 results/gtsrb_none_predictions_audit.csv
 # outdated MNIST evidence stays local
 results/mnist_degradation_full/
+# demo video images stays local
+results/demo_video/
 
 # material produced for social media
 results/linkedin/
