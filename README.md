@@ -12,7 +12,7 @@ The current evaluation covers MNIST and GTSRB and includes custom CNN architectu
 
 ## Research question
 
-> Under controlled image degradation, when and how does model confidence stop being a useful indication of correctness, and can simple reliability signals expose failure behaviour that overall accuracy and calibration summaries hide?
+> At what point does model confidence stop aligning with actual performance under degraded image conditions, and can this be detected using simple reliability signals?
 
 ## What the framework does
 
@@ -37,7 +37,8 @@ The trust signal is a practical warning based on the evaluation results, not a s
 | Datasets                        | MNIST, GTSRB                             |
 | MNIST model                     | SimpleCNN                                |
 | GTSRB models                    | GTSRBCNN, ResNet18, MobileNetV2          |
-| Final stronger-model comparison | ResNet18                                 |
+| Primary GTSRB comparison        | GTSRBCNN vs ResNet18                     |
+| Confirmatory GTSRB model        | MobileNetV2                              |
 | Degradations                    | Gaussian blur, Gaussian noise, low light |
 | Severities                      | clean baseline plus 1 to 5               |
 | Main seed                       | 42                                       |
@@ -47,7 +48,7 @@ The trust signal is a practical warning based on the evaluation results, not a s
 
 MNIST is the simple proof of concept. GTSRB is the main colour-image case study.
 
-ResNet18 and MobileNetV2 were compared in a controlled clean-validation pilot using the same split, seed, preprocessing and training settings. Their balanced accuracy was effectively equivalent, but ResNet18 trained faster and used less observed process memory in this CPU environment, so I selected it for the final model comparison.
+ResNet18 and MobileNetV2 were first compared in a controlled clean-validation pilot using the same split, seed, preprocessing and training settings. Their balanced accuracy was effectively equivalent, but ResNet18 trained faster and used less observed process memory in this CPU environment, so it was selected for the primary GTSRB comparison. MobileNetV2 was retained and later evaluated under the same degradation conditions as a confirmatory model.
 
 ## GTSRB track-aware validation split
 
@@ -135,7 +136,9 @@ Adaptive HCER is kept as a diagnostic because the validation percentile can reac
 
 Rank-based HCER gives another view by always looking at a fixed top-confidence group.
 
-HCER is useful, but it needs to be read alongside the other metrics. Under severe degradation, fixed HCER can fall because fewer predictions remain above `0.90`, even while accuracy is still getting worse.
+HCER is useful, but it needs to be read alongside the other metrics. Under severe degradation, fixed HCER can fall because fewer predictions remain above `0.90`, even while accuracy is still getting worse. 
+
+The later evidence analysis also uses high-confidence coverage, conditional error within the high-confidence group, failure-detection AUROC using `1 - confidence`, top-confidence cohort accuracy, and same-image confidence transitions. These diagnostics are kept separate because calibration, confidence ranking and high-confidence error behaviour answer different questions.
 
 ## Validation profiles
 
@@ -188,7 +191,7 @@ Each saved trust record also includes the rules that triggered the warning.
 
 What it does not tell me is whether the model's current performance is good enough for a particular application. A weaker model can stay close to its weaker baseline, while a stronger model can deteriorate sharply and still have better absolute accuracy.
 
-I may add separate current-condition limits later, but they are not part of the current trust label.
+Application-specific current-condition limits are outside the current trust label and remain future work.
 
 ## Main findings
 
@@ -247,6 +250,28 @@ GTSRBCNN crosses the severe absolute accuracy-drop rule, while ResNet18 is caugh
 
 So the same trust label can describe different failure behaviour.
 
+### What the aggregate metrics hid
+
+At Gaussian noise severity 5, GTSRBCNN and ResNet18 reached almost the same accuracy, at `28.33%` and `28.01%`. Their confidence was much less similar. Failure-detection AUROC was `0.7958` for GTSRBCNN and `0.8664` for ResNet18, while the highest-confidence 10% of predictions were `86.14%` and `98.89%` accurate respectively.
+
+The paired image analysis also showed that similar accuracy did not mean the models were succeeding and failing on the same examples. Of the 12,630 test images, both models were wrong on 7,449, but only 38 of those shared failures received the same wrong class.
+
+For GTSRBCNN under Gaussian noise, fixed HCER fell from `19.83%` at severity 3 to `17.42%` at severity 5. Over the same interval, coverage above `0.90` confidence fell from `56.26%` to `37.08%`, while the error rate within that remaining high-confidence group rose from `35.24%` to `46.98%`.
+
+For ResNet18 between noise severities 4 and 5, 7,435 images were wrong at both levels. `72.7%` of those predictions became more confident and their mean confidence increased by `6.27` percentage points, even though mean confidence across the full condition fell.
+
+### Trust-rule ablation
+
+The final GTSRB warning timing was performance-led. Absolute accuracy drop alone reproduced all GTSRBCNN labels, while relative error increase alone reproduced all ResNet18 labels. Removing ECE, confidence-gap deterioration or fixed HCER did not change the final warning labels.
+
+The confidence measures were still useful because they explained behaviour that the final warning could not show.
+
+### MobileNetV2 confirmatory check
+
+MobileNetV2 had the highest undegraded GTSRB test accuracy at `96.56%`, but fell to `14.50%` under Gaussian noise severity 5. Its failure-detection AUROC was `0.7723`, and the highest-confidence 10% of predictions were `58.67%` accurate.
+
+It also did not reproduce the strong ResNet18 increase in confidence on persistent errors. The mean confidence change for MobileNetV2 predictions that were wrong at both noise severities 4 and 5 was slightly negative at `-0.38` percentage points. This limits the ResNet18 finding to that model and condition rather than treating it as a general pretrained-model behaviour.
+
 ## Installation
 
 Python 3.11 is used by the CI workflow.
@@ -262,7 +287,7 @@ python -m pip install -r requirements.txt
 
 Datasets are downloaded through torchvision when required.
 
-`data/`, `checkpoints/` and `results/` are excluded from version control.
+`data/` and `checkpoints/` are excluded from version control. Compact research evidence is preserved under `results/`, while large prediction-level CSVs, superseded exploratory outputs and local presentation material remain outside normal Git tracking.
 
 ## Configuration
 
@@ -404,17 +429,24 @@ python -m scripts.add_trust_signal --config configs/gtsrb_resnet18.yaml
 
 ### MobileNetV2
 
-MobileNetV2 remains supported through:
+MobileNetV2 uses:
 
 ```text
 configs/gtsrb_mobilenet_v2.yaml
 ```
 
-Its checkpoint and pilot results are kept as part of the model-selection evidence.
+It was retained after the clean-validation pilot and later run through the full GTSRB degradation evaluation as a confirmatory model.
+
+```
+python -m scripts.train_gtsrb --config configs/gtsrb_mobilenet_v2.yaml
+python -m scripts.build_gtsrb_validation_profile --config configs/gtsrb_mobilenet_v2.yaml
+python -m experiments.gtsrb_degradation_eval --config configs/gtsrb_mobilenet_v2.yaml
+python -m scripts.add_trust_signal --config configs/gtsrb_mobilenet_v2.yaml
+```
 
 ## Comparing GTSRB models
 
-After the GTSRBCNN and ResNet18 evaluations and trust signals have been generated:
+The primary GTSRB comparison uses GTSRBCNN and ResNet18. After both evaluations and trust signals have been generated:
 
 ```bash
 python -m scripts.compare_gtsrb_models \
@@ -423,7 +455,9 @@ python -m scripts.compare_gtsrb_models \
   --output-dir results/gtsrb_model_comparison
 ```
 
-The comparison checks that both runs use the same split, seed, degradation conditions and evaluation settings before joining the results.
+The comparison checks that both runs use the same split, seed, degradation conditions and evaluation settings before joining the results. 
+
+MobileNetV2 was evaluated separately as a confirmatory model rather than replacing the primary GTSRBCNN-ResNet18 comparison.
 
 It produces:
 
@@ -458,6 +492,8 @@ trust_signal.json
 
 Training, validation-profile, degradation-evaluation, trust and model-comparison commands refuse to replace existing evidence by default. Add `--overwrite` when replacement is intentional.
 
+The later evidence analysis works from these saved outputs rather than rerunning model inference. This includes paired model failures, confidence transitions, trust-rule attribution and ablation, confidence diagnostics and paired bootstrap analysis.
+
 ### Prediction-level results
 
 `predictions.csv` includes:
@@ -475,7 +511,7 @@ degradation
 severity
 ```
 
-These saved predictions allow metrics and later analysis to be checked without rerunning model inference.
+These saved predictions allow metrics and later prediction-level analysis to be checked or extended without rerunning model inference. They were used for the paired model-failure analysis, same-image confidence transitions and bootstrap checks reported in the final study.
 
 ## Repository structure
 
@@ -485,17 +521,42 @@ These saved predictions allow metrics and later analysis to be checked without r
 │   └── workflows/
 │       └── tests.yml
 ├── configs/
+│   ├── gtsrb.yaml
+│   ├── gtsrb_resnet18.yaml
+│   ├── gtsrb_mobilenet_v2.yaml
+│   └── mnist.yaml
 ├── experiments/
 │   ├── gtsrb_degradation_eval.py
 │   └── mnist_degradation_eval.py
+├── results/
+│   ├── gtsrb_degradation_eval/
+│   ├── gtsrb_resnet18_degradation_eval/
+│   ├── gtsrb_mobilenet_v2_degradation_eval/
+│   ├── gtsrb_evidence_analysis/
+│   │   ├── bootstrap_uncertainty.csv
+│   │   ├── class_failure_summary.csv
+│   │   ├── confidence_diagnostics.csv
+│   │   ├── paired_model_failures.csv
+│   │   ├── prediction_confidence_transitions.csv
+│   │   ├── trust_rule_ablation.csv
+│   │   ├── trust_rule_attribution.csv
+│   │   └── final_outputs/
+│   ├── gtsrb_model_comparison/
+│   ├── gtsrb_model_pilot/
+│   ├── sanity_checks/
+│   └── *_validation_profile.json
 ├── scripts/
 │   ├── add_trust_signal.py
+│   ├── analyse_gtsrb_evidence.py
+│   ├── bootstrap_gtsrb_evidence.py
 │   ├── build_gtsrb_validation_profile.py
 │   ├── build_mnist_validation_profile.py
 │   ├── compare_gtsrb_models.py
+│   ├── plot_gtsrb_evidence.py
 │   ├── plot_metrics.py
 │   ├── save_gtsrb_degradation_grid.py
 │   ├── save_mnist_degradation_grid.py
+│   ├── summarise_gtsrb_confirmatory_models.py
 │   ├── train_gtsrb.py
 │   └── train_mnist.py
 ├── src/
@@ -511,6 +572,8 @@ These saved predictions allow metrics and later analysis to be checked without r
 ├── README.md
 └── requirements.txt
 ```
+
+Large datasets and trained checkpoints are kept locally under data/ and checkpoints/. Prediction-level CSVs are also kept locally because of their size, while the compact summaries, analysis tables, configurations and final figures needed to inspect the reported findings are preserved in results/.
 
 ## Adding another model
 
@@ -550,8 +613,11 @@ Reusable parts include:
 * output saving
 * trust-signal calculation
 * plotting
+* prediction-level evidence analysis
 
 ## Testing
+
+The final automated suite contains 197 tests.
 
 Run the complete test suite with:
 
@@ -569,13 +635,19 @@ The tests cover:
 * model construction
 * shared evaluation
 * validation profiles
-* GTSRB split consistency
+* GTSRB track-split consistency
 * trust signals
 * output saving
-* plots
+* plots and reporting
 * model comparison
+* prediction-level analysis
+* trust-rule attribution and ablation
+* bootstrap analysis
+* provenance and overwrite safeguards
 
-Most tests use small synthetic inputs so they can run without downloading datasets or pretrained model weights.
+Metric tests use small known examples where the expected result can be checked directly. The suite also checks invalid inputs, split integrity, checkpoint metadata, saved-output structure and small end-to-end evaluation paths.
+
+Most automated tests use small synthetic or replacement inputs so they can run without downloading full datasets or pretrained model weights. Full model training, pretrained-weight loading and the complete degradation experiments were checked separately during the experimental runs.
 
 ## Continuous integration
 
@@ -588,15 +660,18 @@ This checks that the project still installs and passes its tests in a clean envi
 The main things I use to keep experiments reproducible are:
 
 * fixed seeds
-* YAML configs
-* saved config copies
-* checkpoint metadata
-* preprocessing metadata
+* YAML configs and saved config copies
+* checkpoint and preprocessing metadata
 * the GTSRB validation-track fingerprint
-* checkpoint and profile consistency checks
+* checkpoint, profile and split consistency checks
 * fixed degradation definitions
+* stable image IDs
 * saved prediction-level evidence
-* regression tests
+* provenance checks
+* overwrite protection
+* regression and end to end tests
+
+The aim is not only to make a run repeatable, but to preserve enough information to identify which model, split, configuration and predictions produced each reported result.
 
 ## Historical results
 
@@ -607,21 +682,28 @@ Earlier exploratory results have been kept locally as development evidence, incl
 The current project covers:
 
 * two datasets
-* three main GTSRB architectures
-* three degradation types
+* three GTSRB architectures
+* three controlled degradation types
 * fixed degradation definitions
 * maximum softmax probability as the main confidence score
+* one training seed for the final model runs
 
-The trust thresholds are empirical and baseline-relative.
+The paired bootstrap analysis estimates uncertainty across the fixed test images, not variation from retraining the models.
+
+The trust thresholds are baseline-relative engineering choices. They identify deterioration from each model's own undegraded behaviour rather than deciding whether its absolute performance is suitable for a particular application.
 
 Adaptive HCER can also become less useful when validation confidence saturates near `1.0`.
 
-The results therefore describe the models, datasets and degradation conditions tested in this project.
+ResNet18 and MobileNetV2 began from ImageNet-pretrained weights, while GTSRBCNN was trained from scratch. The comparisons therefore reflect the final trained models, including differences in architecture and pretraining.
+
+The findings should be interpreted within the models, datasets and degradation conditions tested here rather than as general behaviour of all vision models.
 
 ## Contribution
 
-The main contribution is a reusable evaluation workflow that brings controlled degradation tests, prediction-level evidence, reliability metrics and trust warnings together.
+The main contribution is a reusable evaluation workflow that brings controlled degradation testing, saved prediction-level evidence, reliability metrics, failure-detection diagnostics and simple condition-level warnings together.
 
-The experiments show that similar accuracy does not necessarily mean similar confidence behaviour. Under severe Gaussian noise, GTSRBCNN and ResNet18 reached almost the same accuracy while remaining very different in mean confidence, confidence-accuracy gap and high-confidence error behaviour.
+The experiments show why the framework benefits from both summary measures and deeper prediction-level analysis. GTSRBCNN and ResNet18 reached almost identical accuracy under severe Gaussian noise while showing very different confidence and failure-detection behaviour. HCER could fall while the remaining high-confidence predictions became less reliable, and average confidence could fall while persistent errors became more confident.
 
-The practical value is that two models can reach similar accuracy while failing in very different ways, and the framework makes those differences visible.
+There was no single point at which confidence stopped aligning with performance across all degradation types. The trust signal indicates when deterioration has become serious enough to investigate, while the prediction-level analysis shows how confidence is behaving underneath that warning.
+
+That is the practical value of the work. Rather than stopping at whether accuracy has fallen, the framework shows when reliability starts to shift, how the failure develops and what aggregate metrics may be hiding. It provides a reproducible way to investigate confident failure, not just observe it.
