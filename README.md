@@ -1,6 +1,6 @@
 # Confident and Wrong
 
-**An open-source research framework for evaluating vision-model reliability under controlled image degradation.**
+**A reproducible research framework for evaluating vision-model reliability under controlled image degradation.**
 
 Confident and Wrong investigates both when and how model confidence stops being a useful indication of correctness as image conditions deteriorate.
 
@@ -43,8 +43,8 @@ The trust signal is a practical warning based on the evaluation results, not a s
 | Severities                      | clean baseline plus 1 to 5               |
 | Main seed                       | 42                                       |
 | GTSRB input size                | 64 × 64                                  |
-| Pretrained weights              | `IMAGENET1K_V1`                          |
-| Transfer-learning strategy      | full fine-tuning                         |
+| Pretrained weights              | ResNet18/MobileNetV2: `IMAGENET1K_V1`    |
+| Transfer-learning strategy      | ResNet18/MobileNetV2: full fine-tuning   |
 
 MNIST is the simple proof of concept. GTSRB is the main colour-image case study.
 
